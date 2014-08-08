@@ -1,3 +1,9 @@
+
+// macosx 
+// cc main.c -lresolv
+// linux, freebsd
+// cc main.c
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +16,12 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
+#if defined(__linux__) || defined(__FreeBSD__)
+#include <arpa/nameser.h>
+#else
 #include <nameser.h>
+#endif
+
 #include <resolv.h>
 
 void memdump(void* buffer, int length)
