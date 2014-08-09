@@ -6,25 +6,36 @@
 (use '[clojure.string :only (split)])
 
 (def bufsize 65536)
+(def session (ref {}))
 
 (defn read_header [rdr]
-  (let [line (.readLine rdr)
-        header (apply hash-map
-                      (flatten (map #(split % #"=") (split line #","))))]
-    header))
+  (let [line (.readLine rdr)]
+    (if (empty? line)
+      (do (println "remote socket was closed")
+          (System/exit 0))
+      (apply hash-map (flatten (map #(split % #"=") (split line #",")))))))
 
 (defn read_data [rdr header]
   (let [len (read-string (header "len"))
-        buf (make-array Byte/TYPE len)]
-    (.read rdr buf 0 len)
-    (println (str "in DATA, len = " len))
-    (println (apply str (map #(format "%02x" (bit-and 0xff (int %))) buf)))))
+        buf (make-array Byte/TYPE len)
+        ret (.read rdr buf 0 len)]
+    (if (= ret -1)
+      (do (println "remote socket was closed")
+          (System/exit 0))
+      (do (println (str "in DATA, len = " len))
+          (println (apply str (map #(format "%02x" (bit-and 0xff (int %))) buf)))))))
 
 (defn flow_created [rdr header]
-  (println "flow created"))
+  (let [h (dissoc header "event" "len")]
+    (dosync (alter session assoc h {:state :method :data '()}))
+    (println (str @session))
+    (println "flow created")))
 
 (defn flow_destroyed [rdr header]
-  (println "flow destroyed"))
+  (let [h (dissoc header "event" "len")]
+    (dosync (alter session dissoc h))
+    (println (str @session))
+    (println "flow destroyed")))
 
 (defn uxreader [sock]
   (with-open [rdr (java.io.DataInputStream. (.getInputStream sock))]
