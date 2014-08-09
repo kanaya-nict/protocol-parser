@@ -112,7 +112,7 @@ const unsigned char sample_dns_res[] = { 0xdf, 0x37, 0x81, 0x80,
 
 void parse_dns(unsigned char *payload, int length)
 {
-    res_init();
+    //res_init();
 
     ns_msg ns_handle;
     memset(&ns_handle, 0, sizeof(ns_handle));
