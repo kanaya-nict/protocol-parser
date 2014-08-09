@@ -8,21 +8,15 @@
 (def bufsize 65536)
 
 (defn read_header [rdr]
-  "read header formatted as text"
-  (try
-    (let [line (.readLine rdr)
-          foo (println line)
-          header (apply hash-map
-                        (flatten (map #(split % #"=") (split line #","))))]
-      header)
-    (catch java.io.IOException e
-      (println "error: couldn't read from socket")
-      (System/exit 1))))
+  (let [line (.readLine rdr)
+        header (apply hash-map
+                      (flatten (map #(split % #"=") (split line #","))))]
+    header))
 
 (defn read_data [rdr header]
   (let [len (read-string (header "len"))
-        buf (make-array Byte/TYPE len)
-        ret (.read rdr buf 0 len)]
+        buf (make-array Byte/TYPE len)]
+    (.read rdr buf 0 len)
     (println (str "in DATA, len = " len))
     (println (apply str (map #(format "%02x" (bit-and 0xff (int %))) buf)))))
 
@@ -38,10 +32,14 @@
       (loop []
         (let [header (read_header rdr)]
           (println (str header))
-          (condp = (header "event")
-            "DATA" (read_data rdr header)
-            "CREATED" (flow_created rdr header)
-            "DESTROYED" (flow_destroyed rdr header))
+          (try
+            (condp = (header "event")
+              "DATA" (read_data rdr header)
+              "CREATED" (flow_created rdr header)
+              "DESTROYED" (flow_destroyed rdr header))
+            (catch java.io.IOException e
+              (println "error: couldn't read from socket")
+              (System/exit 1)))
         (recur))))))
 
 (defn uxconnect [uxpath]
