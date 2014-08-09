@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <arpa/inet.h>
 
@@ -15,6 +16,8 @@
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <sys/uio.h>
+#include <sys/un.h>
 
 #if defined(__linux__) || defined(__FreeBSD__)
 #include <arpa/nameser.h>
@@ -23,6 +26,11 @@
 #endif
 
 #include <resolv.h>
+
+#include <iostream>
+#include <string>
+#include <map>
+#include <vector>
 
 void memdump(void* buffer, int length)
 {
@@ -101,7 +109,8 @@ const unsigned char sample_dns_res[] = { 0xdf, 0x37, 0x81, 0x80,
                                          0x4c, 0x56, 0x00, 0x04,
                                          0x7d, 0xce, 0xf5, 0x32};
 
-int main(int argc, char** argv)
+
+void parse_dns(unsigned char *payload, int length)
 {
     res_init();
 
@@ -109,7 +118,8 @@ int main(int argc, char** argv)
     memset(&ns_handle, 0, sizeof(ns_handle));
 
     //ns_initparse(sample_dns_que,  sizeof(sample_dns_que), &ns_handle);
-    ns_initparse(sample_dns_res,  sizeof(sample_dns_res), &ns_handle);
+    //ns_initparse(sample_dns_res,  sizeof(sample_dns_res), &ns_handle);
+    ns_initparse(payload, length, &ns_handle);
 
     printf("id:%d\n", ns_msg_id(ns_handle));
     /*
@@ -265,7 +275,109 @@ int main(int argc, char** argv)
             //memdump((void*)ns_rr_rdata(rr) ,ns_rr_rdlen(rr));
         }
     }
-
-    return 0;
 }
 
+std::string read_line(int sock)
+{
+    std::string line;
+    int len;
+
+    for (;;) {
+        char c;
+
+        // read関数何回も呼びすぎ・・・
+        len = read(sock, &c, 1);
+        if (len <= 0) {
+            perror("couldn't read");
+            exit(1);
+        }
+
+        if (c == '\n') {
+            return line;
+        } else {
+            line += c;
+        }
+    }
+}
+
+void split(std::vector<std::string> &res, const std::string &str, char delim){
+    size_t current = 0, found;
+
+    while((found = str.find_first_of(delim, current)) != std::string::npos){
+        res.push_back(std::string(str, current, found - current));
+        current = found + 1;
+    }
+
+    res.push_back(std::string(str, current, str.size() - current));
+}
+
+void parse_header(std::map<std::string, std::string> &res,
+                  const std::string &line)
+{
+    std::vector<std::string> sp;
+
+    split(sp, line, ',');
+
+    for (auto it = sp.begin(); it != sp.end(); ++it) {
+        std::vector<std::string> kv;
+
+        split(kv, *it, '=');
+
+        if (kv.size() != 2) {
+            std::cerr << "invalid header" << std::endl;
+            exit(1);
+        }
+
+        res[kv[0]] = kv[1];
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    char *uxpath = "/tmp/stap/udp/dns";
+
+    if (argc >= 2) {
+        uxpath = argv[1];
+    }
+
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock == -1)
+    {
+        perror("socket");
+        exit(1);
+    }
+
+    struct sockaddr_un sa = {0};
+    sa.sun_family = AF_UNIX;
+    strcpy(sa.sun_path, uxpath);
+
+    if (connect(sock, (struct sockaddr*) &sa, sizeof(struct sockaddr_un)) == -1)
+    {
+        perror("connect");
+        exit(1);
+    }
+
+    for (;;) {
+        std::map<std::string, std::string> header;
+
+        std::string line = read_line(sock);
+        parse_header(header, line);
+
+        std::cout << line << std::endl;
+
+        auto it = header.find("len");
+        if (it == header.end()) {
+            std::cerr << "no length field in header" << std::endl;
+            exit(1);
+        }
+
+        unsigned char buf[65536];
+        int  len = read(sock, buf, atoi(header["len"].c_str()));
+        if (len <= 0) {
+            perror("couldn't read");
+            exit(1);
+        }
+
+        parse_dns(buf, len);
+    }
+}
