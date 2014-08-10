@@ -1,6 +1,10 @@
 cmake_minimum_required (VERSION 2.6)
 cmake_policy(SET CMP0022 OLD)
-cmake_policy(SET CMP0042 NEW)
+
+IF(POLICY CMP0042)
+  cmake_policy(SET CMP0042 NEW)
+ENDIF(POLICY CMP0042)
+
 project (stap_dns)
 
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
