@@ -32,6 +32,8 @@
 #include <map>
 #include <vector>
 
+int ns_format = 0;
+
 void memdump_format0(void* buffer, int length)
 {
     uint32_t* addr32 = (uint32_t*)buffer;
@@ -296,8 +298,8 @@ void parse_dns(unsigned char *payload, int length)
     memset(&ns_handle, 0, sizeof(ns_handle));
 
     ns_initparse(payload, length, &ns_handle);
-    //ns_print(&ns_handle, 0);
-    ns_print(&ns_handle, 1);
+    ns_print(&ns_handle, ns_format);
+
     return;
 }
 
@@ -358,10 +360,25 @@ void parse_header(std::map<std::string, std::string> &res,
 
 int main(int argc, char *argv[])
 {
-    char *uxpath = (char*)"/tmp/stap/udp/dns";
+    int   result;
+    std::string uxpath = (char*)"/tmp/stap/udp/dns";
 
-    if (argc >= 2) {
-        uxpath = argv[1];
+    while((result = getopt(argc, argv, "u:ph"))!=-1){
+        switch (result) {
+        case 'p':
+            ns_format = 1;
+            break;
+        case 'u':
+            uxpath = optarg;
+            break;
+        case 'h':
+        default:
+            std::cout << argv[0] << " -p -u unix_domain_path\n"
+                      << "  -p: print data as packet format\n"
+                      << "  -u: specify a path of unix domain socket"
+                      << std::endl;
+            return 0;
+        }
     }
 
     int sock = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -373,7 +390,7 @@ int main(int argc, char *argv[])
 
     struct sockaddr_un sa = {0};
     sa.sun_family = AF_UNIX;
-    strcpy(sa.sun_path, uxpath);
+    strcpy(sa.sun_path, uxpath.c_str());
 
     if (connect(sock, (struct sockaddr*) &sa, sizeof(struct sockaddr_un)) == -1)
     {
