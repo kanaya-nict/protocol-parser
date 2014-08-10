@@ -71,7 +71,7 @@ void memdump(void* buffer, int length)
 
 void parse_dns(unsigned char *payload, int length)
 {
-    res_init();
+    //res_init();
 
     ns_msg ns_handle;
     memset(&ns_handle, 0, sizeof(ns_handle));
