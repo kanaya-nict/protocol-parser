@@ -69,47 +69,6 @@ void memdump(void* buffer, int length)
     return;
 }
 
-
-const unsigned char sample_dns_que[] = { 0xdf, 0x37, 0x01, 0x00,
-                                         0x00, 0x01, 0x00, 0x00,
-                                         0x00, 0x00, 0x00, 0x00,
-                                         0x03, 0x77, 0x77, 0x77,
-                                         0x05, 0x6a, 0x61, 0x69,
-                                         0x73, 0x74, 0x02, 0x61,
-                                         0x63, 0x02, 0x6a, 0x70,
-                                         0x00, 0x00, 0x01, 0x00,
-                                         0x01};
-const unsigned char sample_dns_res[] = { 0xdf, 0x37, 0x81, 0x80, 
-                                         0x00, 0x01, 0x00, 0x01,
-                                         0x00, 0x02, 0x00, 0x02,
-                                         0x03, 0x77, 0x77, 0x77,
-                                         0x05, 0x6a, 0x61, 0x69,
-                                         0x73, 0x74, 0x02, 0x61,
-                                         0x63, 0x02, 0x6a, 0x70,
-                                         0x00, 0x00, 0x01, 0x00,
-                                         0x01, 0xc0, 0x0c, 0x00,
-                                         0x01, 0x00, 0x01, 0x00,
-                                         0x00, 0x0d, 0xf4, 0x00,
-                                         0x04, 0x96, 0x41, 0x05,
-                                         0xd0, 0xc0, 0x10, 0x00,
-                                         0x02, 0x00, 0x01, 0x00,
-                                         0x00, 0x14, 0x1e, 0x00,
-                                         0x05, 0x02, 0x6e, 0x73,
-                                         0xc0, 0x10, 0xc0, 0x10,
-                                         0x00, 0x02, 0x00, 0x01,
-                                         0x00, 0x00, 0x14, 0x1e,
-                                         0x00, 0x06, 0x03, 0x6e,
-                                         0x73, 0x33, 0xc0, 0x10,
-                                         0xc0, 0x3d, 0x00, 0x01,
-                                         0x00, 0x01, 0x00, 0x00,
-                                         0x4c, 0x56, 0x00, 0x04,
-                                         0x96, 0x41, 0x01, 0x01,
-                                         0xc0, 0x4e, 0x00, 0x01,
-                                         0x00, 0x01, 0x00, 0x00,
-                                         0x4c, 0x56, 0x00, 0x04,
-                                         0x7d, 0xce, 0xf5, 0x32};
-
-
 void parse_dns(unsigned char *payload, int length)
 {
     res_init();
@@ -171,7 +130,6 @@ void parse_dns(unsigned char *payload, int length)
     additional_count = ns_msg_count(ns_handle, ns_s_ar);
     printf("ADDITIONAL_COUNT:%d\n", additional_count);
 
-    int type;
     ns_rr rr;
     char buffer[BUFSIZ];
     int i;
@@ -334,7 +292,7 @@ void parse_header(std::map<std::string, std::string> &res,
 
 int main(int argc, char *argv[])
 {
-    char *uxpath = "/tmp/stap/udp/dns";
+    char *uxpath = (char*)"/tmp/stap/udp/dns";
 
     if (argc >= 2) {
         uxpath = argv[1];
