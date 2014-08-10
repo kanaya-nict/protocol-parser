@@ -15,10 +15,25 @@
           (System/exit 0))
       (apply hash-map (flatten (map #(split % #"=") (split line #",")))))))
 
+(defn parse_client [flow header id buf]
+  (let [data (concat (get-in flow [id :client :data]) buf)
+        state (get-in flow [id :client :state])]
+    flow))
+
+(defn parse_server [flow header id buf]
+  flow)
+
+(defn parse_http [flow header id buf]
+  (do
+    (println (str "in DATA, len = " (alength buf)))
+    (println (str header))
+    (println (apply str (map #(format "%02x" (bit-and 0xff (int %))) buf)))
+    (condp = (header "match")
+      "up" (parse_client flow header id buf)
+      "down" (parse_server flow header id buf))))
+
 (defn read_data [rdr header parser session idx]
   (let [len (read-string (header "len"))
-        from (read-string (header "from"))
-        match (header "match")
         id (dissoc header "event" "from" "match" "len")
         pid (session id)
         buf (make-array Byte/TYPE len)
@@ -28,21 +43,16 @@
           (System/exit 0))
       (if (not (nil? pid))
         (let [pagent (nth parser pid)]
-          (send pagent (fn [curr]
-                         (do (println (str "in DATA, len = " len))
-                             (println (str header))
-                             (println (apply str (map #(format "%02x" (bit-and 0xff (int %))) buf)))
-                             curr))))))
-      [session idx]))
+          (send pagent parse_http header id buf))))
+    [session idx]))
 
 (defn flow_created [rdr header parser session idx]
   (let [id (dissoc header "event")
         pagent (nth parser idx)]
-    (send pagent (fn [curr]
+    (send pagent (fn [flow]
                    (do (println "flow created")
                        (println (str id))
-                       (assoc curr id {:id id
-                                       :client {:data '()
+                       (assoc flow id {:client {:data '()
                                                 :state :method}
                                        :server {:data '()
                                                 :state :code}}))))
@@ -53,11 +63,11 @@
         pid (session id)]
     (if (not (nil? pid))
       (let [pagent (nth parser pid)]
-        (send pagent (fn [curr] (do (println "flow destroyed")
+        (send pagent (fn [flow] (do (println "flow destroyed")
                                     (println pid)
                                     (println (str id))
-                                    (println (dissoc curr id))
-                                    (dissoc curr id))))))
+                                    (println (dissoc flow id))
+                                    (dissoc flow id))))))
     [(dissoc session id) idx]))
 
 (defn uxreader [sock]
