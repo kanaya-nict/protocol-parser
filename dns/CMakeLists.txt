@@ -7,9 +7,7 @@ ENDIF(POLICY CMP0042)
 
 project (stap_dns)
 
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  set(LIBS resolv)
-ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+set(LIBS resolv)
 
 set(CMAKE_CXX_FLAGS "-Wall -std=c++11")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
