@@ -117,7 +117,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
     char buffer[BUFSIZ];
     memset(buffer, 0, sizeof(buffer));
 
-    ns_parserr(ns_handle, (res_9_ns_sect)field, count, &rr);
+    ns_parserr(ns_handle, (ns_sect)field, count, &rr);
 
     if (format == 0) {
         printf("    NAME :%s\n", ns_rr_name(rr));
