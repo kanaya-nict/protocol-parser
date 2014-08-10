@@ -25,7 +25,7 @@
 #include <nameser.h>
 #endif
 
-//#include <resolv.h>
+#include <resolv.h>
 
 #include <iostream>
 #include <string>
@@ -116,8 +116,6 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
     memset(&rr, 0, sizeof(rr));
     char buffer[BUFSIZ];
     memset(buffer, 0, sizeof(buffer));
-
-    ns_parserr(ns_handle, field, count, &rr);
 
     if (format == 0) {
         printf("    NAME :%s\n", ns_rr_name(rr));
@@ -296,8 +294,8 @@ void parse_dns(unsigned char *payload, int length)
     memset(&ns_handle, 0, sizeof(ns_handle));
 
     ns_initparse(payload, length, &ns_handle);
-    //ns_print(ns_handle, 0);
-    ns_print(ns_handle, 1);
+    //ns_print(&ns_handle, 0);
+    ns_print(&ns_handle, 1);
     return;
 }
 
