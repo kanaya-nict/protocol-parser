@@ -5,11 +5,11 @@ IF(POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW)
 ENDIF(POLICY CMP0042)
 
-IF(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-  project (stap_dns)
-ENDIF(${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+project (stap_dns)
 
-set(LIBS resolv)
+IF(NOT ${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
+  set(LIBS resolv)
+ENDIF(NOT ${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
 
 set(CMAKE_CXX_FLAGS "-Wall -std=c++11")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
