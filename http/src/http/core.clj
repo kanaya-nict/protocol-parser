@@ -5,8 +5,7 @@
 
 (use '[clojure.string :only (split)])
 
-(def bufsize 65536)
-(def numpool (* 2 (.. Runtime getRuntime availableProcessors)))
+(def numpool (+ 2 (.. Runtime getRuntime availableProcessors)))
 
 (defn read_header [rdr]
   (let [line (.readLine rdr)]

@@ -4,6 +4,11 @@ FIXME: description
 
 ## Installation
 
+First of all, install [Apache Maven](http://maven.apache.org/).
+
+Then install [junixsocket](https://code.google.com/p/junixsocket/).
+
+
 Download from http://example.com/FIXME.
 
 ## Usage
