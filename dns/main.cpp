@@ -1,9 +1,3 @@
-
-// macosx 
-// cc main.c -lresolv
-// linux, freebsd
-// cc main.c
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -110,6 +104,14 @@ void memdump_format1(void* buffer, int length)
     return;
 }
 
+void memdump_format2(char* buffer, int length)
+{
+    for (int i = 0; i < length; i++) {
+        printf("%02x", (int)buffer[i] & 0xff);
+    }
+}
+
+
 int
 rr_print(ns_msg* ns_handle, int field, int count, int format)
 {
@@ -154,6 +156,29 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         } else {
             memdump_format1((void*)ns_rr_rdata(rr) ,ns_rr_rdlen(rr));
         }
+    } else if (format == 2) {
+        printf("{\"NAME\": \"%s\", \"TYPE\": %d, \"CLASS\": %d",
+               ns_rr_name(rr), ns_rr_type(rr), ns_rr_class(rr));
+
+        if (field == ns_s_qd) {
+            printf("}");
+            return 0;
+        }
+
+        printf(", \"TTL\": %d, ", ns_rr_ttl(rr));
+
+        memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
+        if (1 == ns_rr_type(rr)) {
+            memset(buffer, 0, sizeof(buffer));
+            memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
+            struct in_addr* addr = (struct in_addr*)&buffer;
+            printf("\"A\": \"%s\"}", inet_ntoa(*addr));
+        } else {
+            printf("\"RR\": \"");
+            memdump_format2((char*)ns_rr_rdata(rr), ns_rr_rdlen(rr));
+            printf("\"}");
+        }
+
     } else {
         return 1;
     } 
@@ -178,7 +203,8 @@ char* bin8(unsigned char bin)
 }
 
 int
-ns_print(ns_msg* ns_handle, int format)
+ns_print(ns_msg* ns_handle, int format,
+         std::map<std::string, std::string> &header)
 {
 
     /*
@@ -236,7 +262,7 @@ ns_print(ns_msg* ns_handle, int format)
             printf("----\n");
         }
         for (i=0; i<answer_count; i++) {
-            printf("ANSQER%d ----\n", i+1);
+            printf("ANSWER%d ----\n", i+1);
             rr_print(ns_handle, ns_s_an, i, format);
             printf("----\n");
         }
@@ -285,6 +311,72 @@ ns_print(ns_msg* ns_handle, int format)
             rr_print(ns_handle, ns_s_ar, i, format);
             printf("+----------------+----------------+\n");
         }
+    } else if (format == 2) {
+        printf("{");
+
+        if (header["from"] == "1") {
+            printf("\"IP SRC\": \"%s\", ", header["ip1"].c_str());
+            printf("\"PORT SRC\": %d, ", atoi(header["port1"].c_str()));
+            printf("\"IP DST\": \"%s\", ", header["ip2"].c_str());
+            printf("\"PORT DST\": %d, ", atoi(header["port2"].c_str()));
+        } else {
+            printf("\"IP SRC\": \"%s\", ", header["ip2"].c_str());
+            printf("\"PORT SRC\": %d, ", atoi(header["port2"].c_str()));
+            printf("\"IP DST\": \"%s\", ", header["ip1"].c_str());
+            printf("\"PORT DST\": %d, ", atoi(header["port1"].c_str()));
+        }
+
+        printf("\"ID\": %d, ", ns_msg_id(*ns_handle));
+        printf("\"QR\": %d, ", ns_msg_getflag(*ns_handle, ns_f_qr));
+        printf("\"OP\": %d, ", ns_msg_getflag(*ns_handle, ns_f_opcode));
+        printf("\"AA\": %d, ", ns_msg_getflag(*ns_handle, ns_f_aa));
+        printf("\"TC\": %d, ", ns_msg_getflag(*ns_handle, ns_f_tc));
+        printf("\"RD\": %d, ", ns_msg_getflag(*ns_handle, ns_f_rd));
+        printf("\"RA\": %d, ", ns_msg_getflag(*ns_handle, ns_f_ra));
+        printf("\"Z\": %d, ", ns_msg_getflag(*ns_handle, ns_f_z));
+        printf("\"AD\": %d, ", ns_msg_getflag(*ns_handle, ns_f_ad));
+        printf("\"CD\": %d, ", ns_msg_getflag(*ns_handle, ns_f_cd));
+        printf("\"RC\": %d, ", ns_msg_getflag(*ns_handle, ns_f_rcode));
+        printf("\"QUERY_COUNT\": %d, ", query_count);
+        printf("\"ANSWER_COUNT\": %d, ", answer_count);
+        printf("\"AUTHORITY_COUNT\" : %d, ", authority_count);
+        printf("\"ADDITIONAL_COUNT\": %d, ", additional_count);
+        int i;
+
+        printf("\"QUERY\": [");
+        i = 0;
+        for (;;) {
+            rr_print(ns_handle, ns_s_qd, i, format);
+            i++;
+            if (i == query_count)
+                break;
+            printf(", ");
+        }
+        printf("], ");
+
+        printf("\"ANSWER\": [");
+        for (i = 0; i < answer_count; i++) {
+            rr_print(ns_handle, ns_s_an, i, format);
+            if (i + 1 < answer_count)
+                printf(", ");
+        }
+        printf("], ");
+
+        printf("\"AUTHORITY\": [");
+        for (i = 0; i < authority_count; i++) {
+            rr_print(ns_handle, ns_s_ns, i, format);
+            if (i + 1 < authority_count)
+                printf(", ");
+        }
+        printf("], ");
+
+        printf("\"ADDITIONAL\": [");
+        for (i = 0; i < answer_count; i++) {
+            rr_print(ns_handle, ns_s_ar, i, format);
+            if (i + 1 < additional_count)
+                printf(", ");
+            }
+        printf("]}\n");
     } else {
         return 1;
     }
@@ -292,13 +384,14 @@ ns_print(ns_msg* ns_handle, int format)
     return 0;
 }
 
-void parse_dns(unsigned char *payload, int length)
+void parse_dns(unsigned char *payload, int length,
+               std::map<std::string, std::string> &header)
 {
     ns_msg ns_handle;
     memset(&ns_handle, 0, sizeof(ns_handle));
 
     ns_initparse(payload, length, &ns_handle);
-    ns_print(&ns_handle, ns_format);
+    ns_print(&ns_handle, ns_format, header);
 
     return;
 }
@@ -313,7 +406,10 @@ std::string read_line(int sock)
 
         // read関数何回も呼びすぎ・・・
         len = read(sock, &c, 1);
-        if (len <= 0) {
+        if (len == 0) {
+            perror("remote socket was closed");
+            exit(0);
+        } else if (len <= 0) {
             perror("couldn't read");
             exit(1);
         }
@@ -363,10 +459,13 @@ int main(int argc, char *argv[])
     int   result;
     std::string uxpath = (char*)"/tmp/stap/udp/dns";
 
-    while((result = getopt(argc, argv, "u:ph"))!=-1){
+    while((result = getopt(argc, argv, "u:pjh"))!=-1){
         switch (result) {
         case 'p':
             ns_format = 1;
+            break;
+        case 'j':
+            ns_format = 2;
             break;
         case 'u':
             uxpath = optarg;
@@ -374,6 +473,7 @@ int main(int argc, char *argv[])
         case 'h':
         default:
             std::cout << argv[0] << " -p -u unix_domain_path\n"
+                      << "  -j: print data as JSON format\n"
                       << "  -p: print data as packet format\n"
                       << "  -u: specify a path of unix domain socket"
                       << std::endl;
@@ -404,7 +504,8 @@ int main(int argc, char *argv[])
         std::string line = read_line(sock);
         parse_header(header, line);
 
-        std::cout << line << std::endl;
+        if (ns_format != 2)
+            std::cout << line << std::endl;
 
         auto it = header.find("len");
         if (it == header.end()) {
@@ -419,6 +520,6 @@ int main(int argc, char *argv[])
             exit(1);
         }
 
-        parse_dns(buf, len);
+        parse_dns(buf, len, header);
     }
 }
