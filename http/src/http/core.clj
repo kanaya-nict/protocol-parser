@@ -10,6 +10,9 @@
 (def numpool 1)
 (def top {:client :method :server :responce})
 
+(defn bytes2str [bytes]
+  (apply str (map char bytes)))
+
 (defn read_header [rdr]
   (let [line (.readLine rdr)]
     (if (empty? line)
@@ -30,7 +33,7 @@
 
 (defn parse_method [line]
   (try
-    (let [method (split (apply str (map char line)) #" ")]
+    (let [method (split (bytes2str line) #" ")]
       (if (= 3 (count method))
         {:method (nth method 0)
          :uri (nth method 1)
@@ -41,11 +44,11 @@
 (defn parse_responce [line]
   (try
     (let [idx1 (.indexOf line (byte \space))
-          ver (apply str (map char (take idx1 line)))
+          ver (bytes2str (take idx1 line))
           line2 (drop (inc idx1) line)
           idx2 (.indexOf line2 (byte \space))
-          code (apply str (map char (take idx2 line2)))
-          msg (apply str (map char (drop (inc idx2) line2)))]
+          code (bytes2str (take idx2 line2))
+          msg (bytes2str (drop (inc idx2) line2))]
       {:ver ver :code code :msg msg})
     (catch IllegalArgumentException e nil)))
 
@@ -56,8 +59,8 @@
       (let [idx (.indexOf line (byte \:))]
         (if (= idx -1)
           nil
-          [(clojure.string/lower-case (apply str (map char (take idx line))))
-           (apply str (map char (drop (+ idx 2) line)))]))
+          [(clojure.string/lower-case (bytes2str (take idx line)))
+           (bytes2str (drop (+ idx 2) line))]))
       (catch IllegalArgumentException e nil))))
 
 (defn get_content_len [flow id peer]
@@ -111,14 +114,17 @@
                (assoc-in [id peer :header (nth header 0)] (nth header 1)))])))))
 
 (defn skip_body [flow id peer]
-  (let [len (get-in flow [id peer :remain])
-        data (get-in flow [id peer :data])]
-    (println "remain = " len)
-    (if (>= (count data) len)
+  (let [remain (get-in flow [id peer :remain])
+        data (get-in flow [id peer :data])
+        len (count data)]
+    (println "remain = " remain)
+    (if (>= len remain)
       [true (-> flow
-                (assoc-in [id peer :data] data)
+                (assoc-in [id peer :data] (drop remain data))
                 (assoc-in [id peer :state] (top peer)))]
-      [false (assoc-in flow [id peer :data] data)])))
+      [false (-> flow
+                 (assoc-in [id peer :remain] (- remain len))
+                 (assoc-in [id peer :data] '()))])))
 
 (defn parse [flow0 id buf peer]
   (loop [flow (assoc-in flow0 [id peer :data]

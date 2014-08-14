@@ -371,7 +371,7 @@ ns_print(ns_msg* ns_handle, int format,
         printf("], ");
 
         printf("\"ADDITIONAL\": [");
-        for (i = 0; i < answer_count; i++) {
+        for (i = 0; i < additional_count; i++) {
             rr_print(ns_handle, ns_s_ar, i, format);
             if (i + 1 < additional_count)
                 printf(", ");
@@ -407,7 +407,7 @@ std::string read_line(int sock)
         // read関数何回も呼びすぎ・・・
         len = read(sock, &c, 1);
         if (len == 0) {
-            perror("remote socket was closed");
+            printf("remote socket was closed");
             exit(0);
         } else if (len <= 0) {
             perror("couldn't read");
