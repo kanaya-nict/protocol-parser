@@ -28,7 +28,6 @@
             line (if (= (last line0) (byte \return))
                    (drop-last 1 line0)
                    line0)]
-        ;;(println "line: " (apply str (map char line)))
         [line (drop (inc idx) data)]))))
 
 (defn parse_method [line]
@@ -72,12 +71,35 @@
 (defn is_chunked [flow id peer]
   (= (get-in flow [id peer :header "transfer-encoding"]) "chunked"))
 
+(defn parse_trailer [flow id peer]
+  (let [[line new_data] (take_line (get-in flow [id peer :data]))]
+    (if (nil? line)
+      [false flow] ;; no lines
+      (let [trailer (parse_header line)]
+        (condp = trailer
+          ;; failed to parse a trailer
+          nil [false (assoc-in flow [id :clinet :state] :error)]
+
+          ;; no more trailers
+          :end [true
+                (-> flow
+                    (assoc-in [id peer :data] new_data)
+                    (assoc-in [id peer :state] (top peer)))]
+
+          ;; have more trailers
+          (do
+            (println "trailer:" trailer)
+            [true
+             (-> flow
+                 (assoc-in [id peer :data] new_data)
+                 (assoc-in [id peer :trailer (nth trailer 0)] (nth trailer 1)))]))))))
+
 (defn parse_headers [flow id peer]
   (let [[line new_data] (take_line (get-in flow [id peer :data]))]
     (if (nil? line)
       [false flow] ;; no lines
       (let [header (parse_header line)]
-        (println header)
+        (println "header:" header)
         (condp = header
           ;; failed to parse a header
           nil [false (assoc-in flow [id :clinet :state] :error)]
@@ -117,11 +139,53 @@
   (let [remain (get-in flow [id peer :remain])
         data (get-in flow [id peer :data])
         len (count data)]
-    (println "remain = " remain)
     (if (>= len remain)
       [true (-> flow
                 (assoc-in [id peer :data] (drop remain data))
                 (assoc-in [id peer :state] (top peer)))]
+      [false (-> flow
+                 (assoc-in [id peer :remain] (- remain len))
+                 (assoc-in [id peer :data] '()))])))
+
+(defn parse_chunk_len_line [line]
+  (let [idx (.indexOf line ";")]
+    (if (= idx -1)
+      line
+      (take idx line))))
+        
+
+(defn parse_chunk_len [flow id peer]
+  (let [[line new_data] (take_line (get-in flow [id peer :data]))]
+    (if (nil? line)
+      [false flow]
+      (try
+        (let [len (-> line
+                      (bytes2str)
+                      (parse_chunk_len_line)
+                      (Integer/parseInt 16))]
+          (if (= len 0)
+            [true
+             (-> flow
+                 (assoc-in [id peer :data] new_data)
+                 (assoc-in [id peer :state] :trailer))]
+            [true
+             (-> flow
+                 (assoc-in [id peer :remain] (+ 2 len))
+                 (assoc-in [id peer :data] new_data)
+                 (assoc-in [id peer :state] :chunk-body))]))
+        (catch NumberFormatException e
+          [false (assoc-in flow [id peer :state] :error)])
+        (catch IllegalArgumentException e
+          [false (assoc-in flow [id peer :state] :error)])))))
+
+(defn skip_chunk_body [flow id peer]
+  (let [remain (get-in flow [id peer :remain])
+        data (get-in flow [id peer :data])
+        len (count data)]
+    (if (>= len remain)
+      [true (-> flow
+                (assoc-in [id peer :data] (drop remain data))
+                (assoc-in [id peer :state] :chunk-len))]
       [false (-> flow
                  (assoc-in [id peer :remain] (- remain len))
                  (assoc-in [id peer :data] '()))])))
@@ -135,7 +199,7 @@
                 (if (nil? line)
                   flow
                   (let [method (parse_method line)]
-                    (println "method = " method)
+                    (println "method:" method)
                     (if (nil? method)
                       (assoc-in flow [id peer :state] :error)
                       (recur
@@ -148,7 +212,7 @@
                   (if (nil? line)
                     flow
                     (let [responce (parse_responce line)]
-                      (println "responce: " responce)
+                      (println "responce:" responce)
                       (if (nil? responce)
                         (assoc-in flow [id peer :state] :error)
                         (recur
@@ -164,19 +228,24 @@
               (condp = is_recur
                 false new_flow
                 true (recur new_flow)))
-      :chunk-len flow
-      :chunk-body flow
+      :chunk-len (let [[is_recur new_flow] (parse_chunk_len flow id peer)]
+                   (condp = is_recur
+                     false new_flow
+                     true (recur new_flow)))
+      :chunk-body (let [[is_recur new_flow] (skip_chunk_body flow id peer)]
+                    (condp = is_recur
+                      false new_flow
+                      true (recur new_flow)))
+      :trailer (let [[is_recur new_flow] (parse_trailer flow id peer)]
+                 (condp = is_recur
+                   false new_flow
+                   true (recur new_flow)))
       :error flow)))
 
 (defn parse_http [flow header id buf]
-  (do
-;    (println (str "in DATA, len = " (alength buf)))
-;    (println (str header))
-;    (println (apply str (map #(format "%02x" (bit-and 0xff (int %))) buf)))
-;    (pprint buf)
-    (condp = (header "match")
-      "up" (parse flow id buf :client)
-      "down" (parse flow id buf :server))))
+  (condp = (header "match")
+    "up" (parse flow id buf :client)
+    "down" (parse flow id buf :server)))
 
 (defn read_data [rdr header parser session idx]
   (let [len (read-string (header "len"))
@@ -196,16 +265,16 @@
   (let [id (dissoc header "event")
         pagent (nth parser idx)]
     (send pagent (fn [flow]
-                   (do (println "flow created")
-                       (println (str id))
-                       (assoc flow id {:client {:data '()
-                                                :state :method
-                                                :method nil
-                                                :header {}}
-                                       :server {:data '()
-                                                :state :responce
-                                                :responce nil
-                                                :header {}}}))))
+                   (assoc flow id {:client {:data '()
+                                            :state :method
+                                            :method nil
+                                            :header {}
+                                            :trailer {}}
+                                   :server {:data '()
+                                            :state :responce
+                                            :responce nil
+                                            :header {}
+                                            :trailer {}}})))
     [(assoc session id idx) (mod (inc idx) numpool)]))
 
 (defn flow_destroyed [rdr header parser session idx]
@@ -213,10 +282,7 @@
         pid (session id)]
     (if (not (nil? pid))
       (let [pagent (nth parser pid)]
-        (send pagent (fn [flow] (do (println "flow destroyed")
-                                    (println pid)
-                                    (println (str id))
-                                    (dissoc flow id))))))
+        (send pagent (fn [flow] (dissoc flow id)))))
     [(dissoc session id) idx]))
 
 (defn uxreader [sock]
