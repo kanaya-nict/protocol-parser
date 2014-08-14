@@ -407,7 +407,7 @@ std::string read_line(int sock)
         // read関数何回も呼びすぎ・・・
         len = read(sock, &c, 1);
         if (len == 0) {
-            printf("remote socket was closed");
+            fprintf(stderr, "remote socket was closed");
             exit(0);
         } else if (len <= 0) {
             perror("couldn't read");

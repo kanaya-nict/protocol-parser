@@ -1,14 +1,82 @@
 (ns http.core
   (:gen-class)
+  (:require [clojure.data.json :as json])
   (:import [org.newsclub.net.unix
             AFUNIXSocket AFUNIXSocketAddress AFUNIXSocketException]))
 
 (use '[clojure.string :only (split)])
 (use 'clojure.pprint)
 
-;(def numpool (+ 2 (.. Runtime getRuntime availableProcessors)))
-(def numpool 1)
+(def numpool (+ 2 (.. Runtime getRuntime availableProcessors)))
+(def output_agent (agent 0))
 (def top {:client :method :server :responce})
+
+(defn printerr [& args]
+  (binding [*out* *err*]
+    (apply println args)))
+
+(defn push2result [flow id peer]
+  (let [key (if (= flow :client)
+            :method
+            :responce)
+        result (get-in flow [id peer :result])
+        new_result (conj result
+                         {:header (get-in flow [id peer :header])
+                          key (get-in flow [id peer key])
+                          :trailer (get-in flow [id peer :trailer])})]
+    (-> flow
+        (assoc-in [id peer :result] new_result)
+        (assoc-in [id peer key] nil)
+        (assoc-in [id peer :header] {})
+        (assoc-in [id peer :trailer] {}))))
+
+(defn get_addr [flow id peer]
+  (if (= "1" (get-in flow [id peer :from]))
+    [(id "ip1") (id "port1")]
+    [(id "ip2") (id "port2")]))
+
+(defn pop_peer_result [flow id peer]
+  (let [result (get-in flow [id :peer :result])]
+    (if (empty? result)
+      (assoc-in flow [id peer :result] '())
+      (let [[addr port] (get_addr flow id peer)]
+        (map (fn [res]
+               (let [new_res (-> res
+                                 (assoc :ip addr)
+                                 (assoc :port port))]
+                 (send output_agent
+                       (fn [flow]
+                         (do
+                           (println (json/write-str {peer new_res}))
+                           0)))))
+             result)
+        (assoc-in flow [id peer :result] '())))))
+
+
+(defn pop_result [flow id]
+  (loop [client (get-in flow [id :client :result])
+         server (get-in flow [id :server :result])]
+    (if (or (empty? client) (empty? server))
+      (-> flow
+          (assoc-in [id :client :result] client)
+          (assoc-in [id :server :result] server))
+      (let [[c] (take 1 client)
+            [s] (take 1 server)
+            [caddr cport] (get_addr flow id :client)
+            [saddr sport] (get_addr flow id :server)
+            c2 (-> c
+                   (assoc "ip" caddr)
+                   (assoc "port" cport))
+            s2 (-> s
+                   (assoc "ip" saddr)
+                   (assoc "port" sport))]
+        (send output_agent
+              (fn [flow]
+                (do
+                  (println (json/write-str {:client c2
+                                            :server s2}))
+                  0)))
+        (recur (drop 1 client) (drop 1 server))))))
 
 (defn bytes2str [bytes]
   (apply str (map char bytes)))
@@ -16,7 +84,7 @@
 (defn read_header [rdr]
   (let [line (.readLine rdr)]
     (if (empty? line)
-      (do (println "remote socket was closed")
+      (do (printerr "remote socket was closed")
           (System/exit 0))
       (apply hash-map (flatten (map #(split % #"=") (split line #",")))))))
 
@@ -84,22 +152,22 @@
           :end [true
                 (-> flow
                     (assoc-in [id peer :data] new_data)
-                    (assoc-in [id peer :state] (top peer)))]
+                    (assoc-in [id peer :state] (top peer))
+                    (push2result id peer)
+                    (pop_result id))]
 
           ;; have more trailers
-          (do
-            (println "trailer:" trailer)
+          (let [[key value] trailer]
             [true
              (-> flow
                  (assoc-in [id peer :data] new_data)
-                 (assoc-in [id peer :trailer (nth trailer 0)] (nth trailer 1)))]))))))
+                 (assoc-in [id peer :trailer key] value))]))))))
 
 (defn parse_headers [flow id peer]
   (let [[line new_data] (take_line (get-in flow [id peer :data]))]
     (if (nil? line)
       [false flow] ;; no lines
       (let [header (parse_header line)]
-        (println "header:" header)
         (condp = header
           ;; failed to parse a header
           nil [false (assoc-in flow [id :clinet :state] :error)]
@@ -127,13 +195,16 @@
                 :else [true
                        (-> flow
                            (assoc-in [id peer :data] new_data)
-                           (assoc-in [id peer :state] (top peer)))])
+                           (assoc-in [id peer :state] (top peer))
+                           (push2result id peer)
+                           (pop_result id))])
 
           ;; have more headers
-          [true
-           (-> flow
-               (assoc-in [id peer :data] new_data)
-               (assoc-in [id peer :header (nth header 0)] (nth header 1)))])))))
+          (let [[key value] header]
+            [true
+             (-> flow
+                 (assoc-in [id peer :data] new_data)
+                 (assoc-in [id peer :header key] value))]))))))
 
 (defn skip_body [flow id peer]
   (let [remain (get-in flow [id peer :remain])
@@ -142,7 +213,9 @@
     (if (>= len remain)
       [true (-> flow
                 (assoc-in [id peer :data] (drop remain data))
-                (assoc-in [id peer :state] (top peer)))]
+                (assoc-in [id peer :state] (top peer))
+                (push2result id peer)
+                (pop_result id))]
       [false (-> flow
                  (assoc-in [id peer :remain] (- remain len))
                  (assoc-in [id peer :data] '()))])))
@@ -199,7 +272,6 @@
                 (if (nil? line)
                   flow
                   (let [method (parse_method line)]
-                    (println "method:" method)
                     (if (nil? method)
                       (assoc-in flow [id peer :state] :error)
                       (recur
@@ -212,7 +284,6 @@
                   (if (nil? line)
                     flow
                     (let [responce (parse_responce line)]
-                      (println "responce:" responce)
                       (if (nil? responce)
                         (assoc-in flow [id peer :state] :error)
                         (recur
@@ -244,8 +315,12 @@
 
 (defn parse_http [flow header id buf]
   (condp = (header "match")
-    "up" (parse flow id buf :client)
-    "down" (parse flow id buf :server)))
+    "up" (let [from (header "from")
+               new_flow (assoc-in flow [id :client :from] from)]
+           (parse new_flow id buf :client))
+    "down" (let [from (header "from")
+                 new_flow (assoc-in flow [id :server :from] from)]
+             (parse new_flow id buf :server))))
 
 (defn read_data [rdr header parser session idx]
   (let [len (read-string (header "len"))
@@ -254,7 +329,7 @@
         buf (make-array Byte/TYPE len)
         rlen (.read rdr buf 0 len)]
     (if (= rlen -1)
-      (do (println "remote socket was closed")
+      (do (printerr "remote socket was closed")
           (System/exit 0))
       (if (not (nil? pid))
         (let [pagent (nth parser pid)]
@@ -267,11 +342,13 @@
     (send pagent (fn [flow]
                    (assoc flow id {:client {:data '()
                                             :state :method
+                                            :result '()
                                             :method nil
                                             :header {}
                                             :trailer {}}
                                    :server {:data '()
                                             :state :responce
+                                            :result '()
                                             :responce nil
                                             :header {}
                                             :trailer {}}})))
@@ -282,7 +359,11 @@
         pid (session id)]
     (if (not (nil? pid))
       (let [pagent (nth parser pid)]
-        (send pagent (fn [flow] (dissoc flow id)))))
+        (send pagent (fn [flow] (-> flow
+                                    (pop_result id)
+                                    (pop_peer_result id :client)
+                                    (pop_peer_result id :server)
+                                    (dissoc id))))))
     [(dissoc session id) idx]))
 
 (defn uxreader [sock]
@@ -298,7 +379,7 @@
                       "DESTROYED" (flow_destroyed rdr header parser session idx))]
           (recur parser s i)))
       (catch java.io.IOException e
-        (println "error: couldn't read from socket")
+        (printerr "error: couldn't read from socket")
         (System/exit 1)))))
 
 (defn uxconnect [uxpath]
@@ -306,9 +387,9 @@
     (try
       (.connect sock (AFUNIXSocketAddress. (clojure.java.io/file uxpath)))
       (catch AFUNIXSocketException e
-        (println (str "error: couldn't open \"" uxpath "\""))
+        (printerr (str "error: couldn't open \"" uxpath "\""))
         (System/exit 1)))
-    (println (str "connected to " uxpath))
+    (printerr (str "connected to " uxpath))
     (uxreader sock)))
 
 (defn -main

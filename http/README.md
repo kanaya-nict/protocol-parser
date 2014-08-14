@@ -8,8 +8,7 @@ First of all, install [Apache Maven](http://maven.apache.org/).
 
 Then install [junixsocket](https://code.google.com/p/junixsocket/).
 
-
-Download from http://example.com/FIXME.
+    $ mvn install:install-file -Dfile=junixsocket-1.3.jar -DgroupId=local -DartifactId=junixsocket -Dversion=1.3 -Dpackaging=jar -DgeneratePom=true
 
 ## Usage
 
