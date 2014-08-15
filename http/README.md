@@ -4,12 +4,13 @@ FIXME: description
 
 ## Installation
 
--Dependencies
---[Leiningen](http://leiningen.org/)
---[Apache Maven](http://maven.apache.org/)
---[junixsocket](https://code.google.com/p/junixsocket/)
+*Dependencies
+**[Leiningen](http://leiningen.org/)
+**[Apache Maven](http://maven.apache.org/)
+**[junixsocket](https://code.google.com/p/junixsocket/)
 
 ### Ubuntu 14.04
+
     $ sudo apt-get install leiningen maven
     $ git clone https://github.com/stap-project/protocol-parser.git
     $ cd protocol-parser/javaclass
@@ -18,6 +19,7 @@ FIXME: description
 	$ sudo cp linux/libjunixsocket-linux-1.5-amd64.so /opt/newsclub/lib-native
 
 ### Build junixsocket from source and install
+
     $ cd protocol-parser/javaclass
 	$ tar cjfv junixsocket-1.3_stap.tar.bz2
 	$ cd junixsocket-1.3_stap
@@ -30,6 +32,7 @@ FIXME: description
 ## Usage
 
 Run by using lein.
+
     $ cd protocol-parser/http
 	$ lein deps
 	$ lein run
