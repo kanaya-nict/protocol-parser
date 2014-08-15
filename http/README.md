@@ -4,10 +4,10 @@ FIXME: description
 
 ## Installation
 
-*Dependencies
-**[Leiningen](http://leiningen.org/)
-**[Apache Maven](http://maven.apache.org/)
-**[junixsocket](https://code.google.com/p/junixsocket/)
+- Dependencies
+- [Leiningen](http://leiningen.org/)
+-- [Apache Maven](http://maven.apache.org/)
+-- [junixsocket](https://code.google.com/p/junixsocket/)
 
 ### Ubuntu 14.04
 
@@ -36,6 +36,8 @@ Run by using lein.
     $ cd protocol-parser/http
 	$ lein deps
 	$ lein run
+
+Build jar and run by using java.
 
     $ java -jar http-0.1.0-standalone.jar [args]
 
