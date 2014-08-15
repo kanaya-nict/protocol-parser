@@ -11,35 +11,35 @@ Dependencies
 
 ### Ubuntu 14.04
 
-    $ sudo apt-get install leiningen maven
-    $ git clone https://github.com/stap-project/protocol-parser.git
-    $ cd protocol-parser/javaclass
-    $ ./install.sh
-    $ sudo mkdir -p /opt/newsclub/lib-native
-    $ sudo cp linux/libjunixsocket-linux-1.5-amd64.so /opt/newsclub/lib-native
+	$ sudo apt-get install leiningen maven
+	$ git clone https://github.com/stap-project/protocol-parser.git
+	$ cd protocol-parser/javaclass
+	$ ./install.sh
+	$ sudo mkdir -p /opt/newsclub/lib-native
+	$ sudo cp linux/libjunixsocket-linux-1.5-amd64.so /opt/newsclub/lib-native
 
 ### Build junixsocket from source and install
 
-    $ cd protocol-parser/javaclass
+	$ cd protocol-parser/javaclass
 	$ tar cjfv junixsocket-1.3_stap.tar.bz2
 	$ cd junixsocket-1.3_stap
 	$ ant
-	$ mvn install:install-file -Dfile=junixsocket-1.3.jar
-    -DgroupId=local -DartifactId=junixsocket -Dversion=1.3
-    -Dpackaging=jar -DgeneratePom=true
+	$ mvn install:install-file -Dfile=junixsocket-1.3.jar -DgroupId=local -DartifactId=junixsocket -Dversion=1.3	-Dpackaging=jar -DgeneratePom=true
 	$ sudo cp linux/libjunixsocket-linux-1.5-amd64.so /opt/newsclub/lib-native
 
 ## Usage
 
 Run by using lein.
 
-    $ cd protocol-parser/http
+	$ cd protocol-parser/http
 	$ lein deps
-	$ lein run
+	$ lein run [path_to_unix_domain_socket]
 
 Build jar and run by using java.
 
-    $ java -jar http-0.1.0-standalone.jar [args]
+	$ lein compile
+	$ lein uberjar
+	$ java -jar http-0.1.0-standalone.jar [path_to_unix_domain_socket]
 
 ## Options
 
