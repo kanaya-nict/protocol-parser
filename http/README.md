@@ -24,7 +24,9 @@ Dependencies
 	$ tar cjfv junixsocket-1.3_stap.tar.bz2
 	$ cd junixsocket-1.3_stap
 	$ ant
-	$ mvn install:install-file -Dfile=junixsocket-1.3.jar -DgroupId=local -DartifactId=junixsocket -Dversion=1.3	-Dpackaging=jar -DgeneratePom=true
+	$ mvn install:install-file -Dfile=junixsocket-1.3.jar
+	-DgroupId=local -DartifactId=junixsocket -Dversion=1.3
+	-Dpackaging=jar -DgeneratePom=true
 	$ sudo cp linux/libjunixsocket-linux-1.5-amd64.so /opt/newsclub/lib-native
 
 ## Usage
