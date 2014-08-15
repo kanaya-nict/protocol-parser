@@ -4,10 +4,10 @@ FIXME: description
 
 ## Installation
 
-- Dependencies
+Dependencies
 - [Leiningen](http://leiningen.org/)
--- [Apache Maven](http://maven.apache.org/)
--- [junixsocket](https://code.google.com/p/junixsocket/)
+- [Apache Maven](http://maven.apache.org/)
+- [junixsocket](https://code.google.com/p/junixsocket/)
 
 ### Ubuntu 14.04
 
@@ -15,8 +15,8 @@ FIXME: description
     $ git clone https://github.com/stap-project/protocol-parser.git
     $ cd protocol-parser/javaclass
     $ ./install.sh
-	$ sudo mkdir -p /opt/newsclub/lib-native
-	$ sudo cp linux/libjunixsocket-linux-1.5-amd64.so /opt/newsclub/lib-native
+    $ sudo mkdir -p /opt/newsclub/lib-native
+    $ sudo cp linux/libjunixsocket-linux-1.5-amd64.so /opt/newsclub/lib-native
 
 ### Build junixsocket from source and install
 
