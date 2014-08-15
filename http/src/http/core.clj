@@ -16,7 +16,7 @@
     (apply println args)))
 
 (defn push2result [flow id peer]
-  (let [key (if (= flow :client)
+  (let [key (if (= peer :client)
             :method
             :responce)
         result (get-in flow [id peer :result])
