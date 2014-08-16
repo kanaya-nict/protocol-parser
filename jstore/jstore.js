@@ -27,8 +27,6 @@ mongo_client.connect(uri, function(err, db) {
 
         try {
             result = JSON.parse(line);
-            console.log(line);
-
             result['date'] = new Date();
 
             collection.insert(result, function(err, result) {

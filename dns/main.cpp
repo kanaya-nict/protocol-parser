@@ -315,32 +315,32 @@ ns_print(ns_msg* ns_handle, int format,
         printf("{");
 
         if (header["from"] == "1") {
-            printf("\"IP SRC\":\"%s\", ", header["ip1"].c_str());
-            printf("\"PORT SRC\":%d, ", atoi(header["port1"].c_str()));
-            printf("\"IP DST\":\"%s\", ", header["ip2"].c_str());
-            printf("\"PORT DST\":%d, ", atoi(header["port2"].c_str()));
+            printf("\"IP SRC\":\"%s\",", header["ip1"].c_str());
+            printf("\"PORT SRC\":%d,", atoi(header["port1"].c_str()));
+            printf("\"IP DST\":\"%s\",", header["ip2"].c_str());
+            printf("\"PORT DST\":%d,", atoi(header["port2"].c_str()));
         } else {
-            printf("\"IP SRC\":\"%s\", ", header["ip2"].c_str());
-            printf("\"PORT SRC\":%d, ", atoi(header["port2"].c_str()));
-            printf("\"IP DST\":\"%s\", ", header["ip1"].c_str());
-            printf("\"PORT DST\":%d, ", atoi(header["port1"].c_str()));
+            printf("\"IP SRC\":\"%s\",", header["ip2"].c_str());
+            printf("\"PORT SRC\":%d,", atoi(header["port2"].c_str()));
+            printf("\"IP DST\":\"%s\",", header["ip1"].c_str());
+            printf("\"PORT DST\":%d,", atoi(header["port1"].c_str()));
         }
 
-        printf("\"ID\":%d, ", ns_msg_id(*ns_handle));
-        printf("\"QR\":%d, ", ns_msg_getflag(*ns_handle, ns_f_qr));
-        printf("\"OP\":%d, ", ns_msg_getflag(*ns_handle, ns_f_opcode));
-        printf("\"AA\":%d, ", ns_msg_getflag(*ns_handle, ns_f_aa));
-        printf("\"TC\":%d, ", ns_msg_getflag(*ns_handle, ns_f_tc));
-        printf("\"RD\":%d, ", ns_msg_getflag(*ns_handle, ns_f_rd));
-        printf("\"RA\":%d, ", ns_msg_getflag(*ns_handle, ns_f_ra));
-        printf("\"Z\":%d, ", ns_msg_getflag(*ns_handle, ns_f_z));
-        printf("\"AD\":%d, ", ns_msg_getflag(*ns_handle, ns_f_ad));
-        printf("\"CD\":%d, ", ns_msg_getflag(*ns_handle, ns_f_cd));
-        printf("\"RC\":%d, ", ns_msg_getflag(*ns_handle, ns_f_rcode));
-        printf("\"QUERY_COUNT\":%d, ", query_count);
-        printf("\"ANSWER_COUNT\":%d, ", answer_count);
-        printf("\"AUTHORITY_COUNT\" :%d, ", authority_count);
-        printf("\"ADDITIONAL_COUNT\":%d, ", additional_count);
+        printf("\"ID\":%d,", ns_msg_id(*ns_handle));
+        printf("\"QR\":%d,", ns_msg_getflag(*ns_handle, ns_f_qr));
+        printf("\"OP\":%d,", ns_msg_getflag(*ns_handle, ns_f_opcode));
+        printf("\"AA\":%d,", ns_msg_getflag(*ns_handle, ns_f_aa));
+        printf("\"TC\":%d,", ns_msg_getflag(*ns_handle, ns_f_tc));
+        printf("\"RD\":%d,", ns_msg_getflag(*ns_handle, ns_f_rd));
+        printf("\"RA\":%d,", ns_msg_getflag(*ns_handle, ns_f_ra));
+        printf("\"Z\":%d,", ns_msg_getflag(*ns_handle, ns_f_z));
+        printf("\"AD\":%d,", ns_msg_getflag(*ns_handle, ns_f_ad));
+        printf("\"CD\":%d,", ns_msg_getflag(*ns_handle, ns_f_cd));
+        printf("\"RC\":%d,", ns_msg_getflag(*ns_handle, ns_f_rcode));
+        printf("\"QUERY_COUNT\":%d,", query_count);
+        printf("\"ANSWER_COUNT\":%d,", answer_count);
+        printf("\"AUTHORITY_COUNT\":%d,", authority_count);
+        printf("\"ADDITIONAL_COUNT\":%d,", additional_count);
         int i;
 
         printf("\"QUERY\":[");
@@ -350,7 +350,7 @@ ns_print(ns_msg* ns_handle, int format,
             i++;
             if (i == query_count)
                 break;
-            printf(", ");
+            printf(",");
         }
         printf("], ");
 
@@ -358,7 +358,7 @@ ns_print(ns_msg* ns_handle, int format,
         for (i = 0; i < answer_count; i++) {
             rr_print(ns_handle, ns_s_an, i, format);
             if (i + 1 < answer_count)
-                printf(", ");
+                printf(",");
         }
         printf("], ");
 
@@ -366,7 +366,7 @@ ns_print(ns_msg* ns_handle, int format,
         for (i = 0; i < authority_count; i++) {
             rr_print(ns_handle, ns_s_ns, i, format);
             if (i + 1 < authority_count)
-                printf(", ");
+                printf(",");
         }
         printf("], ");
 
@@ -374,7 +374,7 @@ ns_print(ns_msg* ns_handle, int format,
         for (i = 0; i < additional_count; i++) {
             rr_print(ns_handle, ns_s_ar, i, format);
             if (i + 1 < additional_count)
-                printf(", ");
+                printf(",");
             }
         printf("]}\n");
     } else {
