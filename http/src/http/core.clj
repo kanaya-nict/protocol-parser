@@ -23,10 +23,12 @@
         new_result (conj result
                          {:header (get-in flow [id peer :header])
                           key (get-in flow [id peer key])
+                          :length (get-in flow [id peer :length])
                           :trailer (get-in flow [id peer :trailer])})]
     (-> flow
         (assoc-in [id peer :result] new_result)
         (assoc-in [id peer key] nil)
+        (assoc-in [id peer :length] 0)
         (assoc-in [id peer :header] {})
         (assoc-in [id peer :trailer] {}))))
 
@@ -140,7 +142,8 @@
   (= (get-in flow [id peer :header "transfer-encoding"]) "chunked"))
 
 (defn parse_trailer [flow id peer]
-  (let [[line new_data] (take_line (get-in flow [id peer :data]))]
+  (let [[line new_data] (take_line (get-in flow [id peer :data]))
+        length (get-in flow [id peer :length])]
     (if (nil? line)
       [false flow] ;; no lines
       (let [trailer (parse_header line)]
@@ -151,6 +154,7 @@
           ;; no more trailers
           :end [true
                 (-> flow
+                    (assoc-in [id peer :length] (+ 2 length))
                     (assoc-in [id peer :data] new_data)
                     (assoc-in [id peer :state] (top peer))
                     (push2result id peer)
@@ -160,6 +164,7 @@
           (let [[key value] trailer]
             [true
              (-> flow
+                 (assoc-in [id peer :length] (+ length 2 (count line)))
                  (assoc-in [id peer :data] new_data)
                  (assoc-in [id peer :trailer key] value))]))))))
 
@@ -167,7 +172,8 @@
   (let [[line new_data] (take_line (get-in flow [id peer :data]))]
     (if (nil? line)
       [false flow] ;; no lines
-      (let [header (parse_header line)]
+      (let [header (parse_header line)
+            length (get-in flow [id peer :length])]
         (condp = header
           ;; failed to parse a header
           nil [false (assoc-in flow [id :clinet :state] :error)]
@@ -179,6 +185,7 @@
                 (try
                   [true
                    (-> flow
+                       (assoc-in [id peer :length] (+ length 2))
                        (assoc-in [id peer :data] new_data)
                        (assoc-in [id peer :state] :body)
                        (assoc-in [id peer :remain] (get_content_len flow id peer)))]
@@ -188,12 +195,14 @@
                 ;; have chunked body
                 (is_chunked flow id peer)
                 [true (-> flow
+                          (assoc-in [id peer :length] (+ length 2))
                           (assoc-in [id peer :state] :chunk-len)
                           (assoc-in [id peer :data] new_data))]
 
                 ;; no body and chunk
                 :else [true
                        (-> flow
+                           (assoc-in [id peer :length] (+ length 2))
                            (assoc-in [id peer :data] new_data)
                            (assoc-in [id peer :state] (top peer))
                            (push2result id peer)
@@ -203,21 +212,25 @@
           (let [[key value] header]
             [true
              (-> flow
+                 (assoc-in [id peer :length] (+ length 2 (count line)))
                  (assoc-in [id peer :data] new_data)
                  (assoc-in [id peer :header key] value))]))))))
 
 (defn skip_body [flow id peer]
   (let [remain (get-in flow [id peer :remain])
+        length (get-in flow [id peer :length])
         data (get-in flow [id peer :data])
-        len (count data)]
-    (if (>= len remain)
+        data_len (count data)]
+    (if (>= data_len remain)
       [true (-> flow
+                (assoc-in [id peer :length] (+ length remain))
                 (assoc-in [id peer :data] (drop remain data))
                 (assoc-in [id peer :state] (top peer))
                 (push2result id peer)
                 (pop_result id))]
       [false (-> flow
-                 (assoc-in [id peer :remain] (- remain len))
+                 (assoc-in [id peer :length] (+ length data_len))
+                 (assoc-in [id peer :remain] (- remain data_len))
                  (assoc-in [id peer :data] '()))])))
 
 (defn parse_chunk_len_line [line]
@@ -225,25 +238,27 @@
     (if (= idx -1)
       line
       (take idx line))))
-        
 
 (defn parse_chunk_len [flow id peer]
-  (let [[line new_data] (take_line (get-in flow [id peer :data]))]
+  (let [[line new_data] (take_line (get-in flow [id peer :data]))
+        length (get-in flow [id peer :length])]
     (if (nil? line)
       [false flow]
       (try
-        (let [len (-> line
+        (let [chunk_len (-> line
                       (bytes2str)
                       (parse_chunk_len_line)
                       (Integer/parseInt 16))]
-          (if (= len 0)
+          (if (= chunk_len 0)
             [true
              (-> flow
+                 (assoc-in [id peer :length] (+ length 2 (count line)))
                  (assoc-in [id peer :data] new_data)
                  (assoc-in [id peer :state] :trailer))]
             [true
              (-> flow
-                 (assoc-in [id peer :remain] (+ 2 len))
+                 (assoc-in [id peer :length] (+ length 2 (count line)))
+                 (assoc-in [id peer :remain] (+ 2 chunk_len))
                  (assoc-in [id peer :data] new_data)
                  (assoc-in [id peer :state] :chunk-body))]))
         (catch NumberFormatException e
@@ -253,14 +268,17 @@
 
 (defn skip_chunk_body [flow id peer]
   (let [remain (get-in flow [id peer :remain])
+        length (get-in flow [id peer :length])
         data (get-in flow [id peer :data])
-        len (count data)]
-    (if (>= len remain)
+        data_len (count data)]
+    (if (>= data_len remain)
       [true (-> flow
+                (assoc-in [id peer :length] (+ length remain))
                 (assoc-in [id peer :data] (drop remain data))
                 (assoc-in [id peer :state] :chunk-len))]
       [false (-> flow
-                 (assoc-in [id peer :remain] (- remain len))
+                 (assoc-in [id peer :length] (+ length data_len))
+                 (assoc-in [id peer :remain] (- remain data_len))
                  (assoc-in [id peer :data] '()))])))
 
 (defn parse [flow0 id buf peer]
@@ -268,7 +286,8 @@
                         (concat (get-in flow0 [id peer :data]) buf))]
     (condp = (get-in flow [id peer :state])
       :method (let [[line new_data] (take_line
-                                     (get-in flow [id peer :data]))]
+                                     (get-in flow [id peer :data]))
+                    length (get-in flow [id peer :length])]
                 (if (nil? line)
                   flow
                   (let [method (parse_method line)]
@@ -276,11 +295,13 @@
                       (assoc-in flow [id peer :state] :error)
                       (recur
                        (-> flow
+                           (assoc-in [id peer :length] (+ length  2 (count line)))
                            (assoc-in [id peer :method] method)
                            (assoc-in [id peer :data] new_data)
                            (assoc-in [id peer :state] :header)))))))
       :responce (let [[line new_data] (take_line
-                                       (get-in flow [id peer :data]))]
+                                       (get-in flow [id peer :data]))
+                      length (get-in flow [id peer :length])]
                   (if (nil? line)
                     flow
                     (let [responce (parse_responce line)]
@@ -288,6 +309,7 @@
                         (assoc-in flow [id peer :state] :error)
                         (recur
                          (-> flow
+                             (assoc-in [id peer :length] (+ length 2 (count line)))
                              (assoc-in [id peer :responce] responce)
                              (assoc-in [id peer :data] new_data)
                              (assoc-in [id peer :state] :header)))))))
@@ -345,13 +367,15 @@
                                             :result '()
                                             :method nil
                                             :header {}
-                                            :trailer {}}
+                                            :trailer {}
+                                            :length 0}
                                    :server {:data '()
                                             :state :responce
                                             :result '()
                                             :responce nil
                                             :header {}
-                                            :trailer {}}})))
+                                            :trailer {}
+                                            :length 0}})))
     [(assoc session id idx) (mod (inc idx) numpool)]))
 
 (defn flow_destroyed [rdr header parser session idx]
