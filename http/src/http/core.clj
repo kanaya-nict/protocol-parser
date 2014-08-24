@@ -419,5 +419,5 @@
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (let [uxpath (nth args 0 "/tmp/stap/tcp/http")]
+  (let [uxpath (nth args 0 "/tmp/sf-tap/tcp/http")]
     (uxconnect uxpath)))

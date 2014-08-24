@@ -1,6 +1,6 @@
-(defproject http "0.1.0-stap-http"
-  :description "HTTP Parser for STAP"
-  :url "https://github.com/stap-project/protocol-parser"
+(defproject http "0.1.0-sf-tap-http"
+  :description "HTTP Parser for SF-TAP"
+  :url "https://github.com/SF-TAP/protocol-parser"
   :license {:name "3-Clause BSD License"
             :url "http://opensource.org/licenses/BSD-3-Clause"}
   :dependencies [[org.clojure/clojure "1.6.0"]

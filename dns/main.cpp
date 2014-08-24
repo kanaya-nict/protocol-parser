@@ -457,7 +457,7 @@ void parse_header(std::map<std::string, std::string> &res,
 int main(int argc, char *argv[])
 {
     int   result;
-    std::string uxpath = (char*)"/tmp/stap/udp/dns";
+    std::string uxpath = (char*)"/tmp/sf-tap/udp/dns";
 
     while((result = getopt(argc, argv, "u:pjh"))!=-1){
         switch (result) {
