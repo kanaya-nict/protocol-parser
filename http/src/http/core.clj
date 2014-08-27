@@ -128,7 +128,10 @@
       (let [idx (.indexOf line (byte \:))]
         (if (= idx -1)
           nil
-          [(clojure.string/lower-case (bytes2str (take idx line)))
+          [(-> (take idx line)
+               (bytes2str)
+               (clojure.string/lower-case)
+               (clojure.string/replace #"\." "[dot]"))
            (bytes2str (drop (+ idx 2) line))]))
       (catch IllegalArgumentException e nil))))
 
