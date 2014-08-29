@@ -157,7 +157,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
             memdump_format1((void*)ns_rr_rdata(rr) ,ns_rr_rdlen(rr));
         }
     } else if (format == 2) {
-        printf("{\"NAME\":\"%s\", \"TYPE\":%d, \"CLASS\":%d",
+        printf("{\"NAME\":\"%s\",\"TYPE\":%d,\"CLASS\":%d",
                ns_rr_name(rr), ns_rr_type(rr), ns_rr_class(rr));
 
         if (field == ns_s_qd) {
@@ -165,7 +165,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
             return 0;
         }
 
-        printf(", \"TTL\":%d, ", ns_rr_ttl(rr));
+        printf(",\"TTL\":%d, ", ns_rr_ttl(rr));
 
         memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
         if (1 == ns_rr_type(rr)) {
@@ -352,7 +352,7 @@ ns_print(ns_msg* ns_handle, int format,
                 break;
             printf(",");
         }
-        printf("], ");
+        printf("],");
 
         printf("\"ANSWER\":[");
         for (i = 0; i < answer_count; i++) {
@@ -360,7 +360,7 @@ ns_print(ns_msg* ns_handle, int format,
             if (i + 1 < answer_count)
                 printf(",");
         }
-        printf("], ");
+        printf("],");
 
         printf("\"AUTHORITY\":[");
         for (i = 0; i < authority_count; i++) {
@@ -368,7 +368,7 @@ ns_print(ns_msg* ns_handle, int format,
             if (i + 1 < authority_count)
                 printf(",");
         }
-        printf("], ");
+        printf("],");
 
         printf("\"ADDITIONAL\":[");
         for (i = 0; i < additional_count; i++) {
