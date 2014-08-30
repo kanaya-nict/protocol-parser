@@ -54,7 +54,6 @@
              result)
         (assoc-in flow [id peer :result] '())))))
 
-
 (defn pop_result [flow id]
   (loop [client (get-in flow [id :client :result])
          server (get-in flow [id :server :result])]

@@ -1,4 +1,4 @@
-(defproject http "0.1.0-sf-tap-http"
+(defproject http "0.1.0-sftap-http"
   :description "HTTP Parser for SF-TAP"
   :url "https://github.com/SF-TAP/protocol-parser"
   :license {:name "3-Clause BSD License"

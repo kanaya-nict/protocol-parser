@@ -1,9 +1,11 @@
 (ns http-proxy.core
   (:gen-class)
+  (:require [clojure.data.json :as json])
   (:import [org.newsclub.net.unix
             AFUNIXSocket AFUNIXSocketAddress AFUNIXSocketException]))
 
 (use '[clojure.string :only (split)])
+(use 'clojure.pprint)
 
 (defn printerr [& args]
   (binding [*out* *err*]
@@ -106,11 +108,12 @@
                  (assoc-in [id peer :header key] value))]))))))
 
 (defn parse [session0 header hdline id buf peer wtr_lb]
-  (if (= :data (get-in session0 [id peer :state]))
+  (if (= :body (get-in session0 [id peer :state]))
     (do
       (.writeBytes wtr_lb hdline)
       (.writeByte wtr_lb (int \newline))
-      (.write wtr_lb 0 buf (count buf))
+      (.write wtr_lb buf 0 (count buf))
+      (.flush wtr_lb)
       session0)
     (loop [session (assoc-in session0 [id peer :data]
                              (concat (get-in session0 [id peer :data]) buf))]
@@ -150,18 +153,22 @@
                     false new_session
                     true (recur new_session)))
 
-        :data (let [data (byte-array (map byte (get-in session [id peer :data])))
+        :body (let [data (byte-array (map byte (get-in session [id peer :data])))
                     length (get-in session [id peer :length])
                     dlen (count data)
                     header2 (assoc header "len" dlen)
                     hdline2 (clojure.string/join "," (for [[k v] (seq header2)] (str k "=" v)))]
-                (.writeBytes wtr_lb hdline2)
-                (.writeByte wtr_lb (int \newline))
-                (.write wtr_lb 0 data dlen)
-                (-> session
-                    (assoc-in [id peer :length] (+ length dlen))
-                    (assoc-in [id peer :data] '())))
-        :error session))))
+                (if (= dlen 0)
+                  session
+                  (do (.writeBytes wtr_lb hdline2)
+                      (.writeByte wtr_lb (int \newline))
+                      (.write wtr_lb data 0 dlen)
+                      (.flush wtr_lb)
+                      (-> session
+                          (assoc-in [id peer :length] (+ length dlen))
+                          (assoc-in [id peer :data] '())))))
+        :error session
+        nil session))))
 
 (defn parse_http [session header line id buf wtr_lb]
   (condp = (header "match")
@@ -196,11 +203,30 @@
                 (str (header "len")))
       (System/exit 1))))
 
+(defn get_addr [flow id peer]
+  (if (= "1" (get-in flow [id peer :from]))
+    [(id "ip1") (id "port1")]
+    [(id "ip2") (id "port2")]))
+
 (defn flow_destroyed [session header line wtr_lb]
-  (let [id (dissoc header "event")]
+  (let [id (dissoc header "event")
+        [caddr cport] (get_addr session id :client)
+        [saddr sport] (get_addr session id :server)
+        c (-> session
+              (get-in [id :client])
+              (dissoc :data :state)
+              (assoc "ip" caddr)
+              (assoc "port" cport))
+        s (-> session
+              (get-in [id :server])
+              (dissoc :data :state)
+              (assoc "ip" saddr)
+              (assoc "port" sport))]
     ;; TODO: output JSON
+    (println (json/write-str {:client c, :server s}))
     (.writeBytes wtr_lb line)
     (.writeByte wtr_lb (int \newline))
+    (.flush wtr_lb)
     (dissoc session id)))
 
 (defn uxreader [sock_proxy sock_lb]
