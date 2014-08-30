@@ -7,6 +7,8 @@
 (use '[clojure.string :only (split)])
 (use 'clojure.pprint)
 
+(def output_agent (agent 0))
+
 (defn printerr [& args]
   (binding [*out* *err*]
     (apply println args)))
@@ -24,8 +26,10 @@
 
 (defn flow_created [session header line wtr_lb]
   (let [id (dissoc header "event")]
-    (.writeBytes wtr_lb line)
-    (.writeByte wtr_lb (int \newline))
+    (send output_agent (fn [_] (do
+                                 (.writeBytes wtr_lb line)
+                                 (.writeByte wtr_lb (int \newline))
+                                 0)))
     (assoc session id {:client {:data '()
                                 :length 0
                                 :method nil
@@ -110,10 +114,12 @@
 (defn parse [session0 header hdline id buf peer wtr_lb]
   (if (= :body (get-in session0 [id peer :state]))
     (do
-      (.writeBytes wtr_lb hdline)
-      (.writeByte wtr_lb (int \newline))
-      (.write wtr_lb buf 0 (count buf))
-      (.flush wtr_lb)
+      (send output_agent (fn [_] (do
+                                   (.writeBytes wtr_lb hdline)
+                                   (.writeByte wtr_lb (int \newline))
+                                   (.write wtr_lb buf 0 (count buf))
+                                   (.flush wtr_lb)
+                                   0)))
       session0)
     (loop [session (assoc-in session0 [id peer :data]
                              (concat (get-in session0 [id peer :data]) buf))]
@@ -160,13 +166,17 @@
                     hdline2 (clojure.string/join "," (for [[k v] (seq header2)] (str k "=" v)))]
                 (if (= dlen 0)
                   session
-                  (do (.writeBytes wtr_lb hdline2)
-                      (.writeByte wtr_lb (int \newline))
-                      (.write wtr_lb data 0 dlen)
-                      (.flush wtr_lb)
-                      (-> session
-                          (assoc-in [id peer :length] (+ length dlen))
-                          (assoc-in [id peer :data] '())))))
+                  (do
+                    (send output_agent
+                          (fn [_] (do
+                                    (.writeBytes wtr_lb hdline2)
+                                    (.writeByte wtr_lb (int \newline))
+                                    (.write wtr_lb data 0 dlen)
+                                    (.flush wtr_lb)
+                                    0)))
+                    (-> session
+                        (assoc-in [id peer :length] (+ length dlen))
+                        (assoc-in [id peer :data] '())))))
         :error session
         nil session))))
 
@@ -224,9 +234,11 @@
               (assoc "port" sport))]
     ;; TODO: output JSON
     (println (json/write-str {:client c, :server s}))
-    (.writeBytes wtr_lb line)
-    (.writeByte wtr_lb (int \newline))
-    (.flush wtr_lb)
+    (send output_agent (fn [_] (do
+                                 (.writeBytes wtr_lb line)
+                                 (.writeByte wtr_lb (int \newline))
+                                 (.flush wtr_lb)
+                                 0)))
     (dissoc session id)))
 
 (defn uxreader [sock_proxy sock_lb]
