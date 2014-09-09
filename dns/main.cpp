@@ -521,5 +521,6 @@ int main(int argc, char *argv[])
         }
 
         parse_dns(buf, len, header);
+        fflush(stdout);
     }
 }
