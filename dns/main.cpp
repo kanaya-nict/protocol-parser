@@ -347,7 +347,8 @@ ns_print(ns_msg* ns_handle, int format,
         i = 0;
         for (i = 0; i < query_count; i++) {
             rr_print(ns_handle, ns_s_qd, i, format);
-            printf(",");
+            if (i + 1 < query_count)
+                printf(",");
         }
         printf("],");
 
