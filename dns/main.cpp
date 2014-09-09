@@ -345,11 +345,8 @@ ns_print(ns_msg* ns_handle, int format,
 
         printf("\"QUERY\":[");
         i = 0;
-        for (;;) {
+        for (i = 0; i < query_count; i++) {
             rr_print(ns_handle, ns_s_qd, i, format);
-            i++;
-            if (i == query_count)
-                break;
             printf(",");
         }
         printf("],");
