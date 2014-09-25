@@ -12,5 +12,5 @@
         port (nth args 2 6379)
         server-conn {:pool {} :sepc {:host host :port port}}]
     (loop [line (read-line)]
-      (wcar* server-conn (car/lpush rlist line))
+      (wcar* server-conn (car/rpush rlist line))
       (recur (read-line)))))
