@@ -38,7 +38,7 @@
     [(id "ip2") (id "port2")]))
 
 (defn pop_peer_result [flow id peer]
-  (let [result (get-in flow [id :peer :result])]
+  (let [result (get-in flow [id peer :result])]
     (if (empty? result)
       (assoc-in flow [id peer :result] '())
       (let [[addr port] (get_addr flow id peer)]
@@ -338,32 +338,28 @@
       :error flow)))
 
 (defn parse_http [flow header id buf]
-  (condp = (header "match")
-    "up" (let [from (header "from")
-               new_flow (assoc-in flow [id :client :from] from)]
-           (parse new_flow id buf :client))
-    "down" (let [from (header "from")
-                 new_flow (assoc-in flow [id :server :from] from)]
-             (parse new_flow id buf :server))))
+  (if (contains? flow id)
+    (condp = (header "match")
+      "up" (let [from (header "from")
+                 new_flow (assoc-in flow [id :client :from] from)]
+             (parse new_flow id buf :client))
+      "down" (let [from (header "from")
+                   new_flow (assoc-in flow [id :server :from] from)]
+               (parse new_flow id buf :server)))))
 
-(defn read_data [rdr header parser session idx]
+(defn read_data [rdr header parser]
   (let [len (read-string (header "len"))
         id (dissoc header "event" "from" "match" "len")
-        pid (session id)
         buf (make-array Byte/TYPE len)
         rlen (.read rdr buf 0 len)]
     (if (= rlen -1)
       (do (printerr "remote socket was closed")
           (System/exit 0))
-      (if (not (nil? pid))
-        (let [pagent (nth parser pid)]
-          (send pagent parse_http header id buf))))
-    [session idx]))
+      (send parser parse_http header id buf))))
 
-(defn flow_created [rdr header parser session idx]
-  (let [id (dissoc header "event")
-        pagent (nth parser idx)]
-    (send pagent (fn [flow]
+(defn flow_created [rdr header parser]
+  (let [id (dissoc header "event")]
+    (send parser (fn [flow]
                    (assoc flow id {:client {:data '()
                                             :state :method
                                             :result '()
@@ -377,33 +373,29 @@
                                             :responce nil
                                             :header {}
                                             :trailer {}
-                                            :length 0}})))
-    [(assoc session id idx) (mod (inc idx) numpool)]))
+                                            :length 0}})))))
 
-(defn flow_destroyed [rdr header parser session idx]
-  (let [id (dissoc header "event")
-        pid (session id)]
-    (if (not (nil? pid))
-      (let [pagent (nth parser pid)]
-        (send pagent (fn [flow] (-> flow
-                                    (pop_result id)
-                                    (pop_peer_result id :client)
-                                    (pop_peer_result id :server)
-                                    (dissoc id))))))
-    [(dissoc session id) idx]))
+(defn flow_destroyed [rdr header parser]
+  (let [id (dissoc header "event")]
+    (send parser (fn [flow]
+                   (if (contains? flow id)
+                     (-> flow
+                         (pop_result id)
+                         (pop_peer_result id :client)
+                         (pop_peer_result id :server)
+                         (dissoc id))
+                     flow)))))
 
 (defn uxreader [sock]
   (with-open [rdr (java.io.DataInputStream. (.getInputStream sock))]
     (try
-      (loop [parser (take numpool (repeatedly #(agent {})))
-             session {}
-             idx 0]
-        (let [header (read_header rdr)
-              [s i] (condp = (header "event")
-                      "CREATED" (flow_created rdr header parser session idx)
-                      "DATA" (read_data rdr header parser session idx)
-                      "DESTROYED" (flow_destroyed rdr header parser session idx))]
-          (recur parser s i)))
+      (loop [parser (agent {})
+             header (read_header rdr)]
+        (condp = (header "event")
+          "CREATED" (flow_created rdr header parser)
+          "DATA" (read_data rdr header parser)
+          "DESTROYED" (flow_destroyed rdr header parser))
+      (recur parser (read_header rdr)))
       (catch java.io.IOException e
         (printerr "error: couldn't read from socket")
         (System/exit 1)))))
