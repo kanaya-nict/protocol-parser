@@ -88,7 +88,7 @@ class sftap_http:
 
                 return (True, line)
             except ValueError:
-                line += data
+                line += buf
                 i += 1
 
         return (False, '')
