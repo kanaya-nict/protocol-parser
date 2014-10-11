@@ -1,15 +1,19 @@
 (ns http.core
   (:gen-class)
-  (:require [clojure.data.json :as json])
-  (:import [org.newsclub.net.unix
-            AFUNIXSocket AFUNIXSocketAddress AFUNIXSocketException]))
+  (:require [clojure.data.json :as json]
+            [net.n01se.clojure-jna :as jna]))
 
 (use '[clojure.string :only (split)])
 (use 'clojure.pprint)
 
-(def numpool (+ 2 (.. Runtime getRuntime availableProcessors)))
+(import java.nio.BufferOverflowException)
+(import '(java.util.concurrent Executors))
+
 (def output_agent (agent 0))
 (def top {:client :method :server :responce})
+(def OS (System/getProperty "os.name"))
+(def PF_LOCAL 1)
+(def SOCK_STREAM 1)
 
 (defn printerr [& args]
   (binding [*out* *err*]
@@ -386,32 +390,89 @@
                          (dissoc id))
                      flow)))))
 
-(defn uxreader [sock]
-  (with-open [rdr (java.io.DataInputStream. (.getInputStream sock))]
+;; (defn uxreader [sock]
+;;   (with-open [rdr (java.io.DataInputStream. (.getInputStream sock))]
+;;     (try
+;;       (loop [parser (agent {})
+;;              header (read_header rdr)]
+;;         (condp = (header "event")
+;;           "CREATED" (flow_created rdr header parser)
+;;           "DATA" (read_data rdr header parser)
+;;           "DESTROYED" (flow_destroyed rdr header parser))
+;;       (recur parser (read_header rdr)))
+;;       (catch java.io.IOException e
+;;         (printerr "error: couldn't read from socket")
+;;         (System/exit 1)))))
+
+(defn get_sockaddr_un_bsd [uxpath]
+  (let [buf (jna/make-cbuf 106)]
     (try
-      (loop [parser (agent {})
-             header (read_header rdr)]
-        (condp = (header "event")
-          "CREATED" (flow_created rdr header parser)
-          "DATA" (read_data rdr header parser)
-          "DESTROYED" (flow_destroyed rdr header parser))
-      (recur parser (read_header rdr)))
-      (catch java.io.IOException e
-        (printerr "error: couldn't read from socket")
+      (.put buf (byte 0))
+      (.put buf (byte PF_LOCAL))
+      (.put buf (.getBytes uxpath))
+      (loop []
+        (.put buf (byte 0))
+        (recur))
+      (catch BufferOverflowException e
+        [buf 106]))))
+
+(defn get_sockaddr_un_linux [uxpath]
+  (let [buf (jna/make-cbuf 110)]
+    (try
+      (.put buf (short PF_LOCAL))
+      (.put buf (.getBytes uxpath))
+      (loop []
+        (.put buf (byte 0))
+        (recur))
+      (catch BufferOverflowException e
+        [buf 110]))))
+
+(defn get_sockaddr_un [uxpath]
+  (condp = OS
+    "Mac OS X" (get_sockaddr_un_bsd uxpath)
+    "Linux" (get_sockaddr_un_linux uxpath)
+    (do
+      (printerr "error: not support " OS)
+      (System/exit 1))))
+
+(defn socket []
+  (let [sockfd (jna/invoke Integer c/socket PF_LOCAL SOCK_STREAM 0)]
+    (if (= -1 sockfd)
+      (do
+        (printerr "error: counldn't open socket")
+        (jna/invoke Void c/perror "socket")
+        (System/exit 1))
+      sockfd)))
+
+(defn connect [sockfd saddr slen]
+  (let [res (jna/invoke Integer c/connect sockfd (jna/pointer saddr) slen)]
+    (if (= res -1)
+      (do
+        (printerr "error: counldn't open socket")
+        (jna/invoke Void c/perror "socket")
         (System/exit 1)))))
 
 (defn uxconnect [uxpath]
-  (with-open [sock (AFUNIXSocket/newInstance)]
-    (try
-      (.connect sock (AFUNIXSocketAddress. (clojure.java.io/file uxpath)))
-      (catch AFUNIXSocketException e
-        (printerr (str "error: couldn't open \"" uxpath "\""))
-        (System/exit 1)))
-    (printerr (str "connected to " uxpath))
-    (uxreader sock)))
+  (let [sockfd (socket)
+        [saddr slen] (get_sockaddr_un uxpath)
+        bytebuf (jna/make-cbuf 65536)
+        byteptr (jna/pointer bytebuf)]
+    (connect sockfd saddr slen)
+    (loop [len (jna/invoke Integer c/read sockfd byteptr 65536)]
+      (condp = len
+        -1 (do
+             (jna/invoke Void c/perror "read")
+             (System/exit 1))
+        0 (println "remote socket was closed")
+        (let [readbuf (byte-array len)]
+          (.get bytebuf readbuf)
+          (.position bytebuf 0)
+          (println "read len =" len)
+          (recur (jna/invoke Integer c/read sockfd byteptr 65536)))))))
 
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
   (let [uxpath (nth args 0 "/tmp/sf-tap/tcp/http")]
+    (set-agent-send-executor! (Executors/newFixedThreadPool 1))
     (uxconnect uxpath)))
