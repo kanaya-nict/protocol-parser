@@ -4,7 +4,12 @@ uxpath = '/tmp/sf-tap/tcp/http'
 
 class http_parser:
     def __init__(self):
-        pass
+        self.__HEADER  = 1
+        self.__BODY    = 2
+        self.__CHUNK   = 3
+        self.__TRAILER = 4
+
+        self._state = self.__HEADER
 
 class sftap_http:
     def __init__(self):
@@ -89,27 +94,29 @@ class sftap_http:
         return (False, '')
 
     def _content_read_bytes(self, num):
-        i = 0
-        data = []
-
+        n = 0
         for buf in self._content:
-            if len(buf) < num:
+            n += len(buf)
+
+        if n < num:
+            return (False, None)
+
+        data = []
+        while True:
+            buf = self._content.pop(0)
+            if len(buf) <= num:
                 data.append(buf)
-                i += 1
                 num -= len(buf)
             else:
-                m = buf[0:num]
-                data.append(m)
+                d = buf[0:num]
+                data.append(d)
+                self._content.insert(0, buf[num:])
+                num -= len(d)
 
-                if len(m) > 0:
-                    self._content = self._content[i + 1:]
-                else:
-                    self._content = self._content[i:]
-                    self._content[0] = m[num:]
-
+            if num == 0:
                 return (True, data)
 
-        return (False, [])
+        return (False, None)
 
     def _parse_header(self, line):
         d = {}
