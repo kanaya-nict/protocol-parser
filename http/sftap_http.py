@@ -48,7 +48,12 @@ class http_parser:
                 self._port = header['port2']
 
         self._data.append(data)
-        self._parse(header)
+
+        try:
+            self._parse(header)
+        except e:
+            print('parse error:', e, file=sys.stderr)
+            self.__is_error = True
 
     def _push_data(self):
         result = {}
