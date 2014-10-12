@@ -1,6 +1,6 @@
 import socket
 import json
-import sys
+import sys, traceback
 
 class http_parser:
     def __init__(self, is_client = True):
@@ -51,9 +51,17 @@ class http_parser:
 
         try:
             self._parse(header)
-        except e:
-            print('parse error:', e, file=sys.stderr)
+        except Exception:
             self.__is_error = True
+
+            print('parse error:', file=sys.stderr)
+
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            print("*** extract_tb:", file=sys.stderr)
+            print(repr(traceback.extract_tb(exc_traceback)), file=sys.stderr)
+            print("*** format_tb:", file=sys.stderr)
+            print(repr(traceback.format_tb(exc_traceback)), file=sys.stderr)
+            print("*** tb_lineno:", exc_traceback.tb_lineno, file=sys.stderr)
 
     def _push_data(self):
         result = {}
