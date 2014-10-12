@@ -244,7 +244,7 @@ class http_parser:
         for i, v in enumerate(self._data):
             for j, buf in enumerate(v):
                 idx = buf.find(b'\n')
-                if idx > 0:
+                if idx >= 0:
                     line += buf[:idx].rstrip()
 
                     self._data[i] = v[j:]
@@ -339,7 +339,7 @@ class sftap_http:
         line = b''
         for i, buf in enumerate(self._content):
             idx = buf.find(b'\n')
-            if idx > 0:
+            if idx >= 0:
                 line += buf[:idx]
 
                 self._content = self._content[i:]
