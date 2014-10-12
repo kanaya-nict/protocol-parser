@@ -1,6 +1,6 @@
 import socket
-
-uxpath = '/tmp/sf-tap/tcp/http'
+import json
+import sys
 
 class http_parser:
     def __init__(self, is_client = True):
@@ -23,8 +23,8 @@ class http_parser:
         self._data = []
         self.result = []
 
-        self._ip       = b''
-        self._port     = b''
+        self._ip       = ''
+        self._port     = ''
         self._method   = {}
         self._response = {}
         self._resp     = {}
@@ -39,13 +39,13 @@ class http_parser:
         if self.__is_error:
             return
 
-        if self._ip == b'' or self._port == b'':
-            if header[b'from'] == b'1':
-                self._ip   = header[b'ip1']
-                self._port = header[b'port1']
-            elif header[b'from'] == b'2':
-                self._ip   = header[b'ip2']
-                self._port = header[b'port2']
+        if self._ip == '' or self._port == '':
+            if header['from'] == '1':
+                self._ip   = header['ip1']
+                self._port = header['port1']
+            elif header['from'] == '2':
+                self._ip   = header['ip2']
+                self._port = header['port2']
 
         self._data.append(data)
         self._parse(header)
@@ -62,8 +62,6 @@ class http_parser:
         result['trailer'] = self._trailer
         result['ip']      = self._ip
         result['port']    = self._port
-
-        print(result)
 
         self.result.append(result)
 
@@ -133,7 +131,11 @@ class http_parser:
             else:
                 sp = line.split(b': ')
 
-                self._trailer[sp[0]] = sp[1]
+                val = (b': '.join(sp[1:])).decode('utf-8')
+                val = val.rstrip()
+                val = val.lstrip()
+
+                self._trailer[sp[0].decode('utf-8')] = val
             return True
         else:
             return False
@@ -144,9 +146,9 @@ class http_parser:
         if result:
             sp = line.split(b' ')
 
-            self._method[b'method'] = sp[0]
-            self._method[b'uri']    = sp[1]
-            self._method[b'ver']    = sp[2]
+            self._method['method'] = sp[0].decode('utf-8')
+            self._method['uri']    = sp[1].decode('utf-8')
+            self._method['ver']    = sp[2].decode('utf-8')
 
             self._state = self.__HEADER
             return True
@@ -159,9 +161,9 @@ class http_parser:
         if result:
             sp = line.split(b' ')
 
-            self._response[b'ver']  = sp[0]
-            self._response[b'code'] = sp[1]
-            self._response[b'msg']  = b' '.join(sp[2:])
+            self._response['ver']  = sp[0].decode('utf-8')
+            self._response['code'] = sp[1].decode('utf-8')
+            self._response['msg']  = (b' '.join(sp[2:])).decode('utf-8')
 
             self._state = self.__HEADER
             return True
@@ -173,13 +175,13 @@ class http_parser:
 
         if result:
             if line == b'':
-                if b'content-length' in self._header:
-                    self._remain = int(self._header[b'content-length'])
+                if 'content-length' in self._header:
+                    self._remain = int(self._header['content-length'])
 
                     if self._remain > 0:
                         self._state = self.__BODY
-                    elif (b'transfer-encoding' in self._header and
-                          self._header[b'transfer-encoding'].lower() == b'chunked'):
+                    elif ('transfer-encoding' in self._header and
+                          self._header['transfer-encoding'].lower() == 'chunked'):
                         self._state = self.__CHUNK_LEN
                     elif self._is_client:
                         self._push_data()
@@ -187,8 +189,8 @@ class http_parser:
                     else:
                         self._push_data()
                         self._state = self.__RESP
-                elif (b'transfer-encoding' in self._header and
-                      self._header[b'transfer-encoding'].lower() == b'chunked'):
+                elif ('transfer-encoding' in self._header and
+                      self._header['transfer-encoding'].lower() == 'chunked'):
 
                     self._state = self.__CHUNK_LEN
                 elif self._is_client:
@@ -200,7 +202,11 @@ class http_parser:
             else:
                 sp = line.split(b': ')
 
-                self._header[sp[0].lower()] = b': '.join(sp[1:])
+                val = (b': '.join(sp[1:])).decode('utf-8')
+                val = val.rstrip()
+                val = val.lstrip()
+
+                self._header[sp[0].decode('utf-8').lower()] = val
 
             return True
         else:
@@ -229,13 +235,15 @@ class http_parser:
                     else:
                         self._data[0][0] = self._data[0][0][self._remain:]
                         self._remain  = 0
+
                     if self._remain == 0:
-                        if self._is_client:
-                            self._push_data()
-                            self._state = self.__METHOD
-                        else:
-                            self._push_data()
-                            self._state = self.__RESP
+                        if self._state == self.__BODY:
+                            if self._is_client:
+                                self._push_data()
+                                self._state = self.__METHOD
+                            else:
+                                self._push_data()
+                                self._state = self.__RESP
 
                         return
 
@@ -268,11 +276,13 @@ class http_parser:
         return (False, None)
 
 class sftap_http:
-    def __init__(self):
+    def __init__(self, uxpath):
         self._content = []
 
         self._conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self._conn.connect(uxpath)
+
+        print('connected to', uxpath, file=sys.stderr)
 
         self._header = {}
 
@@ -301,20 +311,41 @@ class sftap_http:
 
                 self._header = self._parse_header(line)
 
-                if self._header[b'event'] == b'DATA':
+                if self._header['event'] == 'DATA':
                     self._state = self.__DATA
-                elif self._header[b'event'] == b'CREATED':
+                elif self._header['event'] == 'CREATED':
                     id = self._get_id()
                     self._http[id] = (http_parser(is_client = True),
                                       http_parser(is_client = False))
-                elif self._header[b'event'] == b'DESTROYED':
+                elif self._header['event'] == 'DESTROYED':
                     try:
                         id = self._get_id()
+                        c = self._http[id][0]
+                        s = self._http[id][1]
+
+                        while len(c.result) > 0 or len(s.result) > 0:
+                            if len(c.result) > 0 and len(s.result):
+                                rc = c.result.pop(0)
+                                rs = s.result.pop(0)
+                                print(json.dumps({'client': rc, 'server': rs},
+                                                 separators=(',', ':'),
+                                                 ensure_ascii = False))
+                            elif len(c.result) > 0:
+                                rc = c.result.pop(0)
+                                print(json.dumps({'client': rc},
+                                                 separators=(',', ':'),
+                                                 ensure_ascii = False))
+                            elif len(s.result) > 0:
+                                rs = s.result.pop(0)
+                                print(json.dumps({'server': rs},
+                                                 separators=(',', ':'),
+                                                 ensure_ascii = False))
+
                         del self._http[id]
                     except KeyError:
                         pass
             elif self._state == self.__DATA:
-                num = int(self._header[b'len'])
+                num = int(self._header['len'])
 
                 (result, buf) = self._read_bytes(num)
                 if result == False:
@@ -323,10 +354,21 @@ class sftap_http:
                 id = self._get_id()
 
                 if id in self._http:
-                    if self._header[b'match'] == b'up':
+                    if self._header['match'] == 'up':
                         self._http[id][0].in_data(buf, self._header)
-                    elif self._header[b'match'] == b'down':
+                    elif self._header['match'] == 'down':
                         self._http[id][1].in_data(buf, self._header)
+
+                    while True:
+                        if (len(self._http[id][0].result) > 0 and
+                            len(self._http[id][1].result) > 0):
+                            c = self._http[id][0].result.pop(0)
+                            s = self._http[id][1].result.pop(0)
+                            print(json.dumps({'client': c, 'server': s},
+                                             separators=(',', ':'),
+                                             ensure_ascii = False))
+                        else:
+                            break
                 else:
                     pass
 
@@ -386,19 +428,24 @@ class sftap_http:
         d = {}
         for x in line.split(b','):
             m = x.split(b'=')
-            d[m[0]] = m[1]
+            d[m[0].decode('utf-8')] = m[1].decode('utf-8')
 
         return d
 
     def _get_id(self):
-        return (self._header[b'ip1'],
-                self._header[b'ip2'],
-                self._header[b'port1'],
-                self._header[b'port2'],
-                self._header[b'hop'])
+        return (self._header['ip1'],
+                self._header['ip2'],
+                self._header['port1'],
+                self._header['port2'],
+                self._header['hop'])
 
 def main():
-    parser = sftap_http()
+    uxpath = '/tmp/sf-tap/tcp/http'
+
+    if len(sys.argv) > 1:
+        uxpath = sys.argv[1]
+
+    parser = sftap_http(uxpath)
     parser.run()
 
 if __name__ == '__main__':
