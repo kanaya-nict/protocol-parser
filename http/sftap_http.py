@@ -309,7 +309,7 @@ class sftap_http:
         while True:
             buf = b'' + self._conn.recv(65536)
             if len(buf) == 0:
-                print('remote socket was closed')
+                print('remote socket was closed', file=sys.stderr)
                 return
 
             self._content.append(buf)
@@ -387,7 +387,7 @@ class sftap_http:
 
                 self._state = self.__HEADER
             else:
-                print("ERROR: unkown state")
+                print("ERROR: unkown state", file=sys.stderr)
                 exit(1)
 
     def _read_line(self):
