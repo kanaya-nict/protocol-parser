@@ -145,8 +145,7 @@ class http_parser:
                 sp = line.split(b': ')
 
                 val = (b': '.join(sp[1:])).decode('utf-8')
-                val = val.rstrip()
-                val = val.lstrip()
+                val = val.strip()
 
                 self._trailer[sp[0].decode('utf-8')] = val
             return True
@@ -216,8 +215,7 @@ class http_parser:
                 sp = line.split(b': ')
 
                 val = (b': '.join(sp[1:])).decode('utf-8')
-                val = val.rstrip()
-                val = val.lstrip()
+                val = val.strip()
 
                 self._header[sp[0].decode('utf-8').lower()] = val
 
