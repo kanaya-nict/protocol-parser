@@ -388,6 +388,8 @@ class sftap_http:
                 print("ERROR: unkown state", file=sys.stderr)
                 exit(1)
 
+            sys.stdout.flush()
+
     def _read_line(self):
         line = b''
         for i, buf in enumerate(self._content):

@@ -26,7 +26,7 @@
 #include <map>
 #include <vector>
 
-int ns_format = 0;
+int ns_format = 2;
 
 void memdump_format0(void* buffer, int length)
 {
@@ -123,22 +123,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
 
     ns_parserr(ns_handle, (ns_sect)field, count, &rr);
 
-    if (format == 0) {
-        printf("    NAME :%s\n", ns_rr_name(rr));
-        printf("    TYPE :%x\n", ns_rr_type(rr));
-        printf("    CLASS:%x\n", ns_rr_class(rr));
-        if (field == ns_s_qd) return 0; 
-        printf("    TTL  :%d\n", ns_rr_ttl(rr));
-        memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
-        if (1 == ns_rr_type(rr)) {
-            memset(buffer, 0, sizeof(buffer));
-            memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
-            struct in_addr* addr = (struct in_addr*)&buffer;
-            printf("    A    :%s\n", inet_ntoa(*addr));
-        } else {
-            memdump_format0((void*)ns_rr_rdata(rr) ,ns_rr_rdlen(rr));
-        }
-    } else if (format == 1) {
+    if (format == 1) {
         printf("| %-31s |\n", ns_rr_name(rr));
         printf("+----------------+----------------+\n");
         printf("| TYPE:%9d | CLASS:%8d |\n", ns_rr_type(rr), ns_rr_class(rr));
@@ -148,7 +133,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         printf("+----------------+----------------+\n");
         printf("| RRLEN:%8d |                |\n", ns_rr_rdlen(rr));
         printf("+----------------+                +\n");
-        if (1 == ns_rr_type(rr)) {
+        if (1 == ns_rr_type(rr)) { // A record
             memset(buffer, 0, sizeof(buffer));
             memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
             struct in_addr* addr = (struct in_addr*)&buffer;
@@ -168,7 +153,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         printf(",\"TTL\":%d, ", ns_rr_ttl(rr));
 
         memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
-        if (1 == ns_rr_type(rr)) {
+        if (1 == ns_rr_type(rr)) { // A record
             memset(buffer, 0, sizeof(buffer));
             memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
             struct in_addr* addr = (struct in_addr*)&buffer;
@@ -239,46 +224,7 @@ ns_print(ns_msg* ns_handle, int format,
     int additional_count;
     additional_count = ns_msg_count(*ns_handle, ns_s_ar);
 
-    if (format == 0) {
-        printf("id:%d\n", ns_msg_id(*ns_handle));
-        printf("QR:%x\n", ns_msg_getflag(*ns_handle, ns_f_qr));
-        printf("OP:%x\n", ns_msg_getflag(*ns_handle, ns_f_opcode));
-        printf("AA:%x\n", ns_msg_getflag(*ns_handle, ns_f_aa));
-        printf("TC:%x\n", ns_msg_getflag(*ns_handle, ns_f_tc));
-        printf("RD:%x\n", ns_msg_getflag(*ns_handle, ns_f_rd));
-        printf("RA:%x\n", ns_msg_getflag(*ns_handle, ns_f_ra));
-        printf("Z :%x\n", ns_msg_getflag(*ns_handle, ns_f_z));
-        printf("AD:%x\n", ns_msg_getflag(*ns_handle, ns_f_ad));
-        printf("CD:%x\n", ns_msg_getflag(*ns_handle, ns_f_cd));
-        printf("RC:%x\n", ns_msg_getflag(*ns_handle, ns_f_rcode));
-        printf("QUERY_COUNT     :%d\n", query_count);
-        printf("ANSWER_COUNT    :%d\n", answer_count);
-        printf("AUTHORITY_COUNT :%d\n", authority_count);
-        printf("ADDITIONAL_COUNT:%d\n", additional_count);
-        int i;
-        for (i=0; i<query_count; i++) {
-            printf("QUERY%d ----\n", i+1);
-            rr_print(ns_handle, ns_s_qd, i, format);
-            printf("----\n");
-        }
-        for (i=0; i<answer_count; i++) {
-            printf("ANSWER%d ----\n", i+1);
-            rr_print(ns_handle, ns_s_an, i, format);
-            printf("----\n");
-        }
-        for (i=0; i<authority_count; i++) {
-            printf("AUTHORITY%d ----\n", i+1);
-            rr_print(ns_handle, ns_s_ns, i, format);
-            printf("----\n");
-        }
-        for (i=0; i<additional_count; i++) {
-            printf("ADDITIONAL%d ----\n", i+1);
-            rr_print(ns_handle, ns_s_ar, i, format);
-            printf("----\n");
-        }
-        /*
-        */
-    } else if (format == 1) {
+    if (format == 1) {
         char upper[9];
         char lower[9];
         memset(upper, 0, sizeof(upper));
@@ -402,7 +348,7 @@ std::string read_line(int sock)
     for (;;) {
         char c;
 
-        // read関数何回も呼びすぎ・・・
+        // read function is called too many
         len = read(sock, &c, 1);
         if (len == 0) {
             fprintf(stderr, "remote socket was closed");
@@ -471,7 +417,7 @@ int main(int argc, char *argv[])
         case 'h':
         default:
             std::cout << argv[0] << " -p -u unix_domain_path\n"
-                      << "  -j: print data as JSON format\n"
+                      << "  -j: print data as JSON format (default)\n"
                       << "  -p: print data as packet format\n"
                       << "  -u: specify a path of unix domain socket"
                       << std::endl;
