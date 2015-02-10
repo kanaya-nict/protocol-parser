@@ -11,8 +11,6 @@ class EStore:
         self.type    = args.type
         self.verbose = args.verbose
 
-        print(self.verbose)
-
     def run(self):
         while True:
             line = input()

@@ -343,14 +343,16 @@ class sftap_http:
                                                  ensure_ascii = False))
                             elif len(c.result) > 0:
                                 rc = c.result.pop(0)
-                                print(json.dumps({'client': rc},
-                                                 separators=(',', ':'),
-                                                 ensure_ascii = False))
+                                if rc['method'] != {}:
+                                    print(json.dumps({'client': rc},
+                                                    separators=(',', ':'),
+                                                    ensure_ascii = False))
                             elif len(s.result) > 0:
                                 rs = s.result.pop(0)
-                                print(json.dumps({'server': rs},
-                                                 separators=(',', ':'),
-                                                 ensure_ascii = False))
+                                if rs['response'] != {}:
+                                    print(json.dumps({'server': rs},
+                                                    separators=(',', ':'),
+                                                    ensure_ascii = False))
 
                         del self._http[id]
                     except KeyError:
