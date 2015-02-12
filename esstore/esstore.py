@@ -6,7 +6,7 @@ from elasticsearch import Elasticsearch
 class EStore:
     def __init__(self, args):
         self.es = Elasticsearch(args.server)
-        
+
         self.index   = args.index
         self.type    = args.type
         self.verbose = args.verbose
@@ -23,9 +23,9 @@ class EStore:
 
 def parse_args():
     parser = argparse.ArgumentParser(description='store JSON to Elasticsearch')
-    
-    parser.add_argument('-s', dest='server', default=['localhost:9300'], nargs='+',
-                        help='server address to Elasticsearch (default = localhost:9300)')
+
+    parser.add_argument('-s', dest='server', default=['localhost:9200'], nargs='+',
+                        help='server address to Elasticsearch (default = localhost:9200)')
     parser.add_argument('-i', dest='index', required=True,
                         help='index for Elasticsearch')
     parser.add_argument('-t', dest='type', required=True,
