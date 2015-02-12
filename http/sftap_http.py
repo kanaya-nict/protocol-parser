@@ -42,10 +42,10 @@ class http_parser:
         if self._ip == '' or self._port == '':
             if header['from'] == '1':
                 self._ip   = header['ip1']
-                self._port = header['port1']
+                self._port = int(header['port1'])
             elif header['from'] == '2':
                 self._ip   = header['ip2']
-                self._port = header['port2']
+                self._port = int(header['port2'])
 
         self._data.append(data)
 
