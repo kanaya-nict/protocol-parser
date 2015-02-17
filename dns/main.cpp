@@ -36,6 +36,20 @@
 
 int ns_format = 2;
 
+std::map<int, std::string> rr_type;
+
+void init_rr_type()
+{
+    rr_type[A]     = "A";
+    rr_type[NS]    = "NS";
+    rr_type[CNAME] = "CNAME";
+    rr_type[SOA]   = "SOA";
+    rr_type[PTR]   = "PTR";
+    rr_type[MX]    = "MX";
+    rr_type[AAAA]  = "AAAA";
+}
+
+
 void memdump_format0(void* buffer, int length)
 {
     uint32_t* addr32 = (uint32_t*)buffer;
@@ -163,8 +177,8 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
             memdump_format1((void*)ns_rr_rdata(rr) ,ns_rr_rdlen(rr));
         }
     } else if (format == 2) {
-        printf("{\"name\":\"%s\",\"type\":%d,\"class\":%d",
-               ns_rr_name(rr), ns_rr_type(rr), ns_rr_class(rr));
+        printf("{\"name\":\"%s\",\"type\":\"%s\",\"class\":%d",
+               ns_rr_name(rr), rr_type[ns_rr_type(rr)].c_str(), ns_rr_class(rr));
 
         if (field == ns_s_qd) {
             printf("}");
@@ -560,6 +574,8 @@ int main(int argc, char *argv[])
         perror("connect");
         exit(1);
     }
+
+    init_rr_type();
 
     for (;;) {
         std::map<std::string, std::string> header;
