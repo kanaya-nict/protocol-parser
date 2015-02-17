@@ -18,7 +18,7 @@ class EStore:
         while True:
             line = input()
             data = json.loads(line)
-            data['timestamp'] = datetime.now()
+            data['timestamp'] = datetime.utcnow()
             self.es.index(index=self.index, doc_type=self.type, body=data)
 
             if self.verbose:
