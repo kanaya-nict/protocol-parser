@@ -74,8 +74,12 @@ class http_parser:
         else:
             result['response'] = self._response
 
-        result['header']  = self._header
-        result['trailer'] = self._trailer
+        if any(self._header):
+            result['header']  = self._header
+
+        if any(self._trailer):
+            result['trailer'] = self._trailer
+
         result['ip']      = self._ip
         result['port']    = self._port
 

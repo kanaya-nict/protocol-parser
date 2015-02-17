@@ -26,6 +26,14 @@
 #include <map>
 #include <vector>
 
+#define A      1
+#define NS     2
+#define CNAME  5
+#define SOA    6
+#define PTR   12
+#define MX    15
+#define AAAA  28
+
 int ns_format = 2;
 
 void memdump_format0(void* buffer, int length)
@@ -115,13 +123,26 @@ void memdump_format2(char* buffer, int length)
 int
 rr_print(ns_msg* ns_handle, int field, int count, int format)
 {
-
+    char dname[NS_MAXDNAME];
     ns_rr rr;
     memset(&rr, 0, sizeof(rr));
     char buffer[BUFSIZ];
     memset(buffer, 0, sizeof(buffer));
 
-    ns_parserr(ns_handle, (ns_sect)field, count, &rr);
+    if (ns_parserr(ns_handle, (ns_sect)field, count, &rr)) {
+        fprintf(stderr, "ns_parserr: %s\n", strerror(errno));
+        if (format == 2) {
+            printf("{}");
+        }
+        return 0;
+    }
+
+#define NS_UNCOMPRESS(RR) ns_name_uncompress(   \
+        ns_msg_base(*ns_handle),                \
+        ns_msg_end(*ns_handle),                 \
+        RR,                                     \
+        dname,                                  \
+        sizeof(dname))
 
     if (format == 1) {
         printf("| %-31s |\n", ns_rr_name(rr));
@@ -133,16 +154,16 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         printf("+----------------+----------------+\n");
         printf("| RRLEN:%8d |                |\n", ns_rr_rdlen(rr));
         printf("+----------------+                +\n");
-        if (1 == ns_rr_type(rr)) { // A record
+        if (A == ns_rr_type(rr)) { // A record
             memset(buffer, 0, sizeof(buffer));
-            memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
+            memcpy(&buffer, ns_rr_rdata(rr), ns_rr_rdlen(rr));
             struct in_addr* addr = (struct in_addr*)&buffer;
             printf("| %-31s |\n", inet_ntoa(*addr));
         } else {
             memdump_format1((void*)ns_rr_rdata(rr) ,ns_rr_rdlen(rr));
         }
     } else if (format == 2) {
-        printf("{\"NAME\":\"%s\",\"TYPE\":%d,\"CLASS\":%d",
+        printf("{\"name\":\"%s\",\"type\":%d,\"class\":%d",
                ns_rr_name(rr), ns_rr_type(rr), ns_rr_class(rr));
 
         if (field == ns_s_qd) {
@@ -150,16 +171,106 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
             return 0;
         }
 
-        printf(",\"TTL\":%d, ", ns_rr_ttl(rr));
+        printf(",\"ttl\":%d,", ns_rr_ttl(rr));
 
         memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
-        if (1 == ns_rr_type(rr)) { // A record
+
+        switch (ns_rr_type(rr)) {
+        case A:
+        {
             memset(buffer, 0, sizeof(buffer));
-            memcpy(&buffer, ns_rr_rdata(rr), sizeof(buffer));
+            memcpy(&buffer, ns_rr_rdata(rr), ns_rr_rdlen(rr));
             struct in_addr* addr = (struct in_addr*)&buffer;
-            printf("\"A\":\"%s\"}", inet_ntoa(*addr));
-        } else {
-            printf("\"RR\":\"");
+            printf("\"a\":\"%s\"}", inet_ntoa(*addr));
+            break;
+        }
+        case NS:
+        {
+            if (NS_UNCOMPRESS(ns_rr_rdata(rr)) < 0) {
+                printf("}");
+            } else {
+                printf("\"ns\":\"%s\"}", dname);
+            }
+            break;
+        }
+        case CNAME:
+        {
+            if (NS_UNCOMPRESS(ns_rr_rdata(rr)) < 0) {
+                printf("}");
+            } else {
+                printf("\"cname\":\"%s\"}", dname);
+            }
+            break;
+        }
+        case PTR:
+        {
+            if (NS_UNCOMPRESS(ns_rr_rdata(rr)) < 0) {
+                printf("}");
+            } else {
+                printf("\"ptr\":\"%s\"}", dname);
+            }
+            break;
+        }
+        case MX:
+        {
+            uint16_t preference = *(uint16_t *)ns_rr_rdata(rr);
+            printf("\"preference\":\"%u\"", ntohs(preference));
+            if (NS_UNCOMPRESS(ns_rr_rdata(rr) + 2) < 0) {
+                printf("}");
+            } else {
+                printf(",\"exchange\":\"%s\"}", dname);
+            }
+            break;
+        }
+        case AAAA:
+            memset(buffer, 0, sizeof(buffer));
+            memcpy(&buffer, ns_rr_rdata(rr), ns_rr_rdlen(rr));
+
+            char addr[INET6_ADDRSTRLEN];
+            if (inet_ntop(AF_INET6, buffer, addr, sizeof(addr)) == NULL) {
+                printf("}");
+            } else {
+                printf("\"aaaa\":\"%s\"}", addr);
+            }
+            break;
+        case SOA:
+            const unsigned char *cp1, *cp2;
+
+            cp1 = cp2 = ns_rr_rdata(rr);
+
+            if (ns_name_skip(&cp2, ns_msg_end(*ns_handle)) < 0) {
+                printf("}");
+                break;
+            }
+
+            NS_UNCOMPRESS(cp1);
+            printf("\"mname\":\"%s\"", dname);
+
+            if (NS_UNCOMPRESS(cp2) < 0) {
+                printf("}");
+            } else {
+                printf(",\"rname\":\"%s\"", dname);
+            }
+
+            ns_name_skip(&cp2, ns_msg_end(*ns_handle));
+
+            struct {
+                uint32_t serial;
+                uint32_t refresh;
+                uint32_t retry;
+                uint32_t expire;
+                uint32_t minumun;
+            } soa_rdata;
+
+            if (cp2 + sizeof(soa_rdata) > ns_msg_end(*ns_handle)) {
+                printf("}");
+            } else {
+                memcpy(&soa_rdata, cp2, sizeof(soa_rdata));
+                printf(",\"serial\":%u,\"refresh\":%u,\"retry\":%u,\"expire\":%u,\"minumum\":%u}", ntohl(soa_rdata.serial), ntohl(soa_rdata.refresh), ntohl(soa_rdata.retry), ntohl(soa_rdata.expire), ntohl(soa_rdata.minumun));
+            }
+            break;
+        default:
+            printf("\"rr\":\"");
             memdump_format2((char*)ns_rr_rdata(rr), ns_rr_rdlen(rr));
             printf("\"}");
         }
@@ -259,37 +370,45 @@ ns_print(ns_msg* ns_handle, int format,
         }
     } else if (format == 2) {
         printf("{");
-
+        
+        printf("\"src\":{");
         if (header["from"] == "1") {
-            printf("\"IP SRC\":\"%s\",", header["ip1"].c_str());
-            printf("\"PORT SRC\":%d,", atoi(header["port1"].c_str()));
-            printf("\"IP DST\":\"%s\",", header["ip2"].c_str());
-            printf("\"PORT DST\":%d,", atoi(header["port2"].c_str()));
+            printf("\"ip\":\"%s\",", header["ip1"].c_str());
+            printf("\"port\":%d", atoi(header["port1"].c_str()));
         } else {
-            printf("\"IP SRC\":\"%s\",", header["ip2"].c_str());
-            printf("\"PORT SRC\":%d,", atoi(header["port2"].c_str()));
-            printf("\"IP DST\":\"%s\",", header["ip1"].c_str());
-            printf("\"PORT DST\":%d,", atoi(header["port1"].c_str()));
+            printf("\"ip\":\"%s\",", header["ip2"].c_str());
+            printf("\"port\":%d", atoi(header["port2"].c_str()));
         }
+        printf("},");
 
-        printf("\"ID\":%d,", ns_msg_id(*ns_handle));
-        printf("\"QR\":%d,", ns_msg_getflag(*ns_handle, ns_f_qr));
-        printf("\"OP\":%d,", ns_msg_getflag(*ns_handle, ns_f_opcode));
-        printf("\"AA\":%d,", ns_msg_getflag(*ns_handle, ns_f_aa));
-        printf("\"TC\":%d,", ns_msg_getflag(*ns_handle, ns_f_tc));
-        printf("\"RD\":%d,", ns_msg_getflag(*ns_handle, ns_f_rd));
-        printf("\"RA\":%d,", ns_msg_getflag(*ns_handle, ns_f_ra));
-        printf("\"Z\":%d,", ns_msg_getflag(*ns_handle, ns_f_z));
-        printf("\"AD\":%d,", ns_msg_getflag(*ns_handle, ns_f_ad));
-        printf("\"CD\":%d,", ns_msg_getflag(*ns_handle, ns_f_cd));
-        printf("\"RC\":%d,", ns_msg_getflag(*ns_handle, ns_f_rcode));
-        printf("\"QUERY_COUNT\":%d,", query_count);
-        printf("\"ANSWER_COUNT\":%d,", answer_count);
-        printf("\"AUTHORITY_COUNT\":%d,", authority_count);
-        printf("\"ADDITIONAL_COUNT\":%d,", additional_count);
+        printf("\"dst\":{");
+        if (header["from"] == "1") {
+            printf("\"ip\":\"%s\",", header["ip2"].c_str());
+            printf("\"port\":%d", atoi(header["port2"].c_str()));
+        } else {
+            printf("\"ip\":\"%s\",", header["ip1"].c_str());
+            printf("\"port\":%d", atoi(header["port1"].c_str()));
+        }
+        printf("},");
+
+        printf("\"id\":%d,", ns_msg_id(*ns_handle));
+        printf("\"qr\":%d,", ns_msg_getflag(*ns_handle, ns_f_qr));
+        printf("\"op\":%d,", ns_msg_getflag(*ns_handle, ns_f_opcode));
+        printf("\"aa\":%d,", ns_msg_getflag(*ns_handle, ns_f_aa));
+        printf("\"tc\":%d,", ns_msg_getflag(*ns_handle, ns_f_tc));
+        printf("\"rd\":%d,", ns_msg_getflag(*ns_handle, ns_f_rd));
+        printf("\"ra\":%d,", ns_msg_getflag(*ns_handle, ns_f_ra));
+        printf("\"z\":%d,", ns_msg_getflag(*ns_handle, ns_f_z));
+        printf("\"ad\":%d,", ns_msg_getflag(*ns_handle, ns_f_ad));
+        printf("\"cd\":%d,", ns_msg_getflag(*ns_handle, ns_f_cd));
+        printf("\"rc\":%d,", ns_msg_getflag(*ns_handle, ns_f_rcode));
+        printf("\"query_count\":%d,", query_count);
+        printf("\"answer_count\":%d,", answer_count);
+        printf("\"authority_count\":%d,", authority_count);
+        printf("\"additional_count\":%d,", additional_count);
         int i;
 
-        printf("\"QUERY\":[");
+        printf("\"query\":[");
         i = 0;
         for (i = 0; i < query_count; i++) {
             rr_print(ns_handle, ns_s_qd, i, format);
@@ -298,7 +417,7 @@ ns_print(ns_msg* ns_handle, int format,
         }
         printf("],");
 
-        printf("\"ANSWER\":[");
+        printf("\"answer\":[");
         for (i = 0; i < answer_count; i++) {
             rr_print(ns_handle, ns_s_an, i, format);
             if (i + 1 < answer_count)
@@ -306,7 +425,7 @@ ns_print(ns_msg* ns_handle, int format,
         }
         printf("],");
 
-        printf("\"AUTHORITY\":[");
+        printf("\"authority\":[");
         for (i = 0; i < authority_count; i++) {
             rr_print(ns_handle, ns_s_ns, i, format);
             if (i + 1 < authority_count)
@@ -314,7 +433,7 @@ ns_print(ns_msg* ns_handle, int format,
         }
         printf("],");
 
-        printf("\"ADDITIONAL\":[");
+        printf("\"additional\":[");
         for (i = 0; i < additional_count; i++) {
             rr_print(ns_handle, ns_s_ar, i, format);
             if (i + 1 < additional_count)
