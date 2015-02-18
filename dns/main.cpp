@@ -28,15 +28,87 @@
 
 #define A      1
 #define NS     2
+#define MD     3
+#define MF     4
 #define CNAME  5
 #define SOA    6
+#define MB     7
+#define MG     8
+#define MR     9
+#define NULL_TYPE 10
+#define WKS   11
 #define PTR   12
+#define HINFO 13
+#define MINFO 14
 #define MX    15
+#define TXT   16
+#define RP    17
+#define AFSDB 18
+#define X25   19
+#define ISDN  20
+#define RT    21
+#define NSAP  22
+#define NSAP_PTR 23
+#define SIG   24
+#define KEY   25
+#define PX    26
+#define GPOS  27
 #define AAAA  28
+#define LOC   29
+#define NXT   30
+#define EID   31
+#define NIMLOC 32
+#define SRV   33
+#define ATMA  34
+#define NAPTR 35
+#define KX    36
+#define CERT  37
+#define A6    38
+#define DNAME 39
+#define SINK  40
+#define OPT   41
+#define APL   42
+#define DS    43
+#define SSHFP 44
+#define IPSECKEY 45
+#define RRSIG 46
+#define NSEC  47
+#define DNSKEY 48
+#define DHCID 49
+#define NSEC3 50
+#define NSEC3PARAM 51
+#define TLSA  52
+#define HIP   55
+#define NINFO 56
+#define RKEY  57
+#define TALINK 58
+#define CDS   59
+#define CDNSKEY 60
+#define OPENPGPKEY 61
+#define CSYNC 62
+#define SPF   99
+#define UINFO 100
+#define UID   101
+#define GID   102
+#define UNSPEC 103
+#define NID   104
+#define L32   105
+#define L64   106
+#define LP    107
+#define EUI48 108
+#define EUI64 109
+#define TKEY  249
+#define TSIG  250
+#define IXFR  251
+#define MAILB 253
+#define MAILA 254
+#define ANY   255
+#define TA    32768
+#define DLV   32769
 
 int ns_format = 2;
 
-std::map<int, std::string> rr_type;
+std::map<uint16_t, std::string> rr_type;
 
 void init_rr_type()
 {
@@ -47,6 +119,85 @@ void init_rr_type()
     rr_type[PTR]   = "PTR";
     rr_type[MX]    = "MX";
     rr_type[AAAA]  = "AAAA";
+    rr_type[A]     = "A";
+    rr_type[NS]    = "NS";
+    rr_type[MD]    = "MD";
+    rr_type[MF]    = "MF";
+    rr_type[CNAME] = "CNAME";
+    rr_type[SOA]   = "SOA";
+    rr_type[MB]    = "MB";
+    rr_type[MG]    = "MG";
+    rr_type[MR]    = "MR";
+    rr_type[NULL_TYPE] = "NULL";
+    rr_type[WKS]   = "WKS";
+    rr_type[PTR]   = "PTR";
+    rr_type[HINFO] = "HINFO";
+    rr_type[MINFO] = "MINFO";
+    rr_type[MX]    = "MX";
+    rr_type[TXT]   = "TXT";
+    rr_type[RP]    = "RP";
+    rr_type[AFSDB] = "AFSDB";
+    rr_type[X25]   = "X25";
+    rr_type[ISDN]  = "ISDN";
+    rr_type[RT]    = "RT";
+    rr_type[NSAP]  = "NSAP";
+    rr_type[NSAP_PTR] = "NSAP_PTR";
+    rr_type[SIG]   = "SIG";
+    rr_type[KEY]   = "KEY";
+    rr_type[PX]    = "PX";
+    rr_type[GPOS]  = "GPOS";
+    rr_type[AAAA]  = "AAAA";
+    rr_type[LOC]   = "LOC";
+    rr_type[NXT]   = "NXT";
+    rr_type[EID]   = "EID";
+    rr_type[NIMLOC] = "NIMLOC";
+    rr_type[SRV]   = "SRV";
+    rr_type[ATMA]  = "ATMA";
+    rr_type[NAPTR] = "NAPTR";
+    rr_type[KX]    = "KX";
+    rr_type[CERT]  = "CERT";
+    rr_type[A6]    = "A6";
+    rr_type[DNAME] = "DNAME";
+    rr_type[SINK]  = "SINK";
+    rr_type[OPT]   = "OPT";
+    rr_type[APL]   = "APL";
+    rr_type[DS]    = "DS";
+    rr_type[SSHFP] = "SSHFP";
+    rr_type[IPSECKEY] = "IPSECKEY";
+    rr_type[RRSIG] = "RRSIG";
+    rr_type[NSEC]  = "NSEC";
+    rr_type[DNSKEY] = "DNSKEY";
+    rr_type[DHCID] = "DHCID";
+    rr_type[NSEC3] = "NSEC3";
+    rr_type[NSEC3PARAM] = "NSEC3PARAM";
+    rr_type[TLSA]  = "TLSA";
+    rr_type[HIP]   = "HIP";
+    rr_type[NINFO] = "HINFO";
+    rr_type[RKEY]  = "RKEY";
+    rr_type[TALINK] = "TALINK";
+    rr_type[CDS]   = "CDS";
+    rr_type[CDNSKEY] = "CDNSKEY";
+    rr_type[OPENPGPKEY] = "OPENPGPKEY";
+    rr_type[CSYNC] = "CSYNC";
+    rr_type[SPF]   = "SPF";
+    rr_type[UINFO] = "UINFO";
+    rr_type[UID]   = "UID";
+    rr_type[GID]   = "GID";
+    rr_type[UNSPEC] = "UNSPEC";
+    rr_type[NID]   = "NID";
+    rr_type[L32]   = "L32";
+    rr_type[L64]   = "L64";
+    rr_type[LP]    = "LP";
+    rr_type[EUI48] = "EUI48";
+    rr_type[EUI64] = "EUI64";
+    rr_type[TKEY]  = "TKEY";
+    rr_type[TSIG]  = "TSIG";
+    rr_type[IXFR]  = "IXFR";
+    rr_type[MAILB] = "MAILB";
+    rr_type[MAILA] = "MAILA";
+    rr_type[ANY]   = "ANY";
+    rr_type[TA]    = "TA";
+    rr_type[DLV]   = "DLV";
 }
 
 
@@ -177,8 +328,13 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
             memdump_format1((void*)ns_rr_rdata(rr) ,ns_rr_rdlen(rr));
         }
     } else if (format == 2) {
-        printf("{\"name\":\"%s\",\"type\":\"%s\",\"class\":%d",
-               ns_rr_name(rr), rr_type[ns_rr_type(rr)].c_str(), ns_rr_class(rr));
+        if (rr_type.find(ns_rr_type(rr)) != rr_type.end()) {
+            printf("{\"name\":\"%s\",\"type\":\"%s\",\"class\":%d",
+                   ns_rr_name(rr), rr_type[ns_rr_type(rr)].c_str(), ns_rr_class(rr));
+        } else {
+            printf("{\"name\":\"%s\",\"type\":\"%u\",\"class\":%d",
+                   ns_rr_name(rr), ns_rr_type(rr), ns_rr_class(rr));
+        }
 
         if (field == ns_s_qd) {
             printf("}");
