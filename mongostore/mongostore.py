@@ -15,13 +15,16 @@ class MongoStore:
 
     def run(self):
         while True:
-            line = input()
-            data = json.loads(line)
-            data['timestamp'] = datetime.now()
-            self.col.insert(data)
+            try:
+                line = input()
+                data = json.loads(line)
+                data['timestamp'] = datetime.now()
+                self.col.insert(data)
 
-            if self.verbose:
-                print(data)
+                if self.verbose:
+                    print(data)
+            except:
+                pass
 
 def parse_args():
     parser = argparse.ArgumentParser(description='store JSON to Elasticsearch')

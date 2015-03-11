@@ -313,7 +313,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         printf("| %-31s |\n", ns_rr_name(rr));
         printf("+----------------+----------------+\n");
         printf("| TYPE:%9d | CLASS:%8d |\n", ns_rr_type(rr), ns_rr_class(rr));
-        if (field == ns_s_qd) return 0; 
+        if (field == ns_s_qd) return 0;
         printf("+----------------+----------------+\n");
         printf("| TTL:%27d |\n", ns_rr_ttl(rr));
         printf("+----------------+----------------+\n");
@@ -447,7 +447,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
 
     } else {
         return 1;
-    } 
+    }
     return 0;
 }
 
@@ -510,8 +510,8 @@ ns_print(ns_msg* ns_handle, int format,
         char lower[9];
         memset(upper, 0, sizeof(upper));
         memset(lower, 0, sizeof(lower));
-        sprintf(upper, "%s", bin8(((ns_handle->_flags)>>8)&0x00FF)); 
-        sprintf(lower, "%s", bin8((ns_handle->_flags)&0x00FF)); 
+        sprintf(upper, "%s", bin8(((ns_handle->_flags)>>8)&0x00FF));
+        sprintf(lower, "%s", bin8((ns_handle->_flags)&0x00FF));
 
         printf("0                16               31\n");
         printf("+----------------+----------------+\n");
@@ -523,24 +523,28 @@ ns_print(ns_msg* ns_handle, int format,
         printf("+----------------+----------------+\n");
         int i;
         for (i=0; i<query_count; i++) {
-            rr_print(ns_handle, ns_s_qd, i, format);
+            if (rr_print(ns_handle, ns_s_qd, i, format) == 0)
+                break;
             printf("+----------------+----------------+\n");
         }
         for (i=0; i<answer_count; i++) {
-            rr_print(ns_handle, ns_s_an, i, format);
+            if (rr_print(ns_handle, ns_s_an, i, format) == 0)
+                break;
             printf("+----------------+----------------+\n");
         }
         for (i=0; i<authority_count; i++) {
-            rr_print(ns_handle, ns_s_ns, i, format);
+            if (rr_print(ns_handle, ns_s_ns, i, format) == 0)
+                break;
             printf("+----------------+----------------+\n");
         }
         for (i=0; i<additional_count; i++) {
-            rr_print(ns_handle, ns_s_ar, i, format);
+            if (rr_print(ns_handle, ns_s_ar, i, format) == 0)
+                break;
             printf("+----------------+----------------+\n");
         }
     } else if (format == 2) {
         printf("{");
-        
+
         printf("\"src\":{");
         if (header["from"] == "1") {
             printf("\"ip\":\"%s\",", header["ip1"].c_str());
@@ -581,7 +585,8 @@ ns_print(ns_msg* ns_handle, int format,
         printf("\"query\":[");
         i = 0;
         for (i = 0; i < query_count; i++) {
-            rr_print(ns_handle, ns_s_qd, i, format);
+            if (rr_print(ns_handle, ns_s_qd, i, format) == 0)
+                break;
             if (i + 1 < query_count)
                 printf(",");
         }
@@ -589,7 +594,8 @@ ns_print(ns_msg* ns_handle, int format,
 
         printf("\"answer\":[");
         for (i = 0; i < answer_count; i++) {
-            rr_print(ns_handle, ns_s_an, i, format);
+            if (rr_print(ns_handle, ns_s_an, i, format) == 0)
+                break;
             if (i + 1 < answer_count)
                 printf(",");
         }
@@ -597,7 +603,8 @@ ns_print(ns_msg* ns_handle, int format,
 
         printf("\"authority\":[");
         for (i = 0; i < authority_count; i++) {
-            rr_print(ns_handle, ns_s_ns, i, format);
+            if (rr_print(ns_handle, ns_s_ns, i, format) == 0)
+                break;
             if (i + 1 < authority_count)
                 printf(",");
         }
@@ -605,7 +612,8 @@ ns_print(ns_msg* ns_handle, int format,
 
         printf("\"additional\":[");
         for (i = 0; i < additional_count; i++) {
-            rr_print(ns_handle, ns_s_ar, i, format);
+            if (rr_print(ns_handle, ns_s_ar, i, format) == 0)
+                break;
             if (i + 1 < additional_count)
                 printf(",");
             }
@@ -643,7 +651,7 @@ std::string read_line(int sock)
             fprintf(stderr, "remote socket was closed");
             exit(0);
         } else if (len <= 0) {
-            perror("couldn't read");
+            perror("couldn't read 1");
             exit(1);
         }
 
@@ -749,13 +757,17 @@ int main(int argc, char *argv[])
         }
 
         unsigned char buf[65536];
-        int  len = read(sock, buf, atoi(header["len"].c_str()));
-        if (len <= 0) {
-            perror("couldn't read");
-            exit(1);
+        int readlen = atoi(header["len"].c_str());
+        int len;
+        if (readlen > 0) {
+            len = read(sock, buf, readlen);
+            if (len <= 0) {
+                std::cerr << header["len"] << std::endl;
+                perror("couldn't read 2");
+                exit(1);
+            }
+            parse_dns(buf, len, header);
+            fflush(stdout);
         }
-
-        parse_dns(buf, len, header);
-        fflush(stdout);
     }
 }

@@ -17,12 +17,15 @@ class EStore:
     def run(self):
         while True:
             line = input()
-            data = json.loads(line)
-            data['timestamp'] = datetime.utcnow()
-            self.es.index(index=self.index, doc_type=self.type, body=data)
+            try:
+                data = json.loads(line)
+                data['timestamp'] = datetime.utcnow()
+                self.es.index(index=self.index, doc_type=self.type, body=data)
 
-            if self.verbose:
-                print(data)
+                if self.verbose:
+                    print(data)
+            except:
+                pass
 
 def parse_args():
     parser = argparse.ArgumentParser(description='store JSON to Elasticsearch')
