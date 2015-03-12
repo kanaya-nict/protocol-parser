@@ -24,7 +24,7 @@ class EStore:
 
                 if self.verbose:
                     print(data)
-            except:
+            except ValueError:
                 pass
 
 def parse_args():
