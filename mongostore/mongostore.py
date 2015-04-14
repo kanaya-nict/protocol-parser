@@ -4,11 +4,12 @@
 import argparse
 import json
 import pymongo
+from pymongo import MongoClient
 from datetime import datetime
 
 class MongoStore:
     def __init__(self, args):
-        self.con = pymongo.Connection(args.server, args.port)
+        self.con = MongoClient(args.server, args.port)
         self.col = self.con[args.db][args.collection]
 
         self.verbose = args.verbose
