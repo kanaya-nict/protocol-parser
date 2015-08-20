@@ -24,7 +24,9 @@ class MongoStore:
 
                 if self.verbose:
                     print(data)
-            except ValueError:
+            except KeyboardInterrupt:
+                raise
+            except:
                 pass
 
 def parse_args():
