@@ -285,7 +285,7 @@ void memdump_format2(char* buffer, int length)
 }
 
 
-int
+bool
 rr_print(ns_msg* ns_handle, int field, int count, int format)
 {
     char dname[NS_MAXDNAME];
@@ -299,7 +299,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         if (format == 2) {
             printf("{}");
         }
-        return 0;
+        return false;
     }
 
 #define NS_UNCOMPRESS(RR) ns_name_uncompress(   \
@@ -313,7 +313,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         printf("| %-31s |\n", ns_rr_name(rr));
         printf("+----------------+----------------+\n");
         printf("| TYPE:%9d | CLASS:%8d |\n", ns_rr_type(rr), ns_rr_class(rr));
-        if (field == ns_s_qd) return 0;
+        if (field == ns_s_qd) return true;
         printf("+----------------+----------------+\n");
         printf("| TTL:%27d |\n", ns_rr_ttl(rr));
         printf("+----------------+----------------+\n");
@@ -336,10 +336,10 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
                    ns_rr_name(rr), ns_rr_type(rr), ns_rr_class(rr));
         }
 
-        if (field == ns_s_qd) {
-            printf("}");
-            return 0;
-        }
+       if (field == ns_s_qd) {
+           printf("}");
+           return true;
+       }
 
         printf(",\"ttl\":%d,", ns_rr_ttl(rr));
 
@@ -446,9 +446,10 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         }
 
     } else {
-        return 1;
+        return false;
     }
-    return 0;
+
+    return true;
 }
 
 char* bin8(unsigned char bin)
@@ -522,23 +523,23 @@ ns_print(ns_msg* ns_handle, int format,
         printf("| NAME_COUNT:%3d | ADD_COUNT:%4d |\n", authority_count, additional_count);
         printf("+----------------+----------------+\n");
         int i;
-        for (i=0; i<query_count; i++) {
-            if (rr_print(ns_handle, ns_s_qd, i, format) == 0)
-                break;
-            printf("+----------------+----------------+\n");
-        }
+       for (i=0; i<query_count; i++) {
+           if (! rr_print(ns_handle, ns_s_qd, i, format))
+               break;
+           printf("+----------------+----------------+\n");
+       }
         for (i=0; i<answer_count; i++) {
-            if (rr_print(ns_handle, ns_s_an, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_an, i, format) == 0)
                 break;
             printf("+----------------+----------------+\n");
         }
         for (i=0; i<authority_count; i++) {
-            if (rr_print(ns_handle, ns_s_ns, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_ns, i, format) == 0)
                 break;
             printf("+----------------+----------------+\n");
         }
         for (i=0; i<additional_count; i++) {
-            if (rr_print(ns_handle, ns_s_ar, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_ar, i, format) == 0)
                 break;
             printf("+----------------+----------------+\n");
         }
@@ -585,7 +586,7 @@ ns_print(ns_msg* ns_handle, int format,
         printf("\"query\":[");
         i = 0;
         for (i = 0; i < query_count; i++) {
-            if (rr_print(ns_handle, ns_s_qd, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_qd, i, format))
                 break;
             if (i + 1 < query_count)
                 printf(",");
@@ -594,7 +595,7 @@ ns_print(ns_msg* ns_handle, int format,
 
         printf("\"answer\":[");
         for (i = 0; i < answer_count; i++) {
-            if (rr_print(ns_handle, ns_s_an, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_an, i, format))
                 break;
             if (i + 1 < answer_count)
                 printf(",");
@@ -603,7 +604,7 @@ ns_print(ns_msg* ns_handle, int format,
 
         printf("\"authority\":[");
         for (i = 0; i < authority_count; i++) {
-            if (rr_print(ns_handle, ns_s_ns, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_ns, i, format))
                 break;
             if (i + 1 < authority_count)
                 printf(",");
@@ -612,7 +613,7 @@ ns_print(ns_msg* ns_handle, int format,
 
         printf("\"additional\":[");
         for (i = 0; i < additional_count; i++) {
-            if (rr_print(ns_handle, ns_s_ar, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_ar, i, format))
                 break;
             if (i + 1 < additional_count)
                 printf(",");
