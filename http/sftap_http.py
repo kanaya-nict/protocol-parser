@@ -4,6 +4,7 @@
 import socket
 import json
 import sys, traceback
+import base64
 
 class http_parser:
     def __init__(self, is_client = True):
@@ -31,6 +32,8 @@ class http_parser:
         self._method   = {}
         self._response = {}
         self._resp     = {}
+#        self._body     = b''
+        self._body     = ''
         self._header   = {}
         self._trailer  = {}
         self._length   = 0
@@ -80,6 +83,12 @@ class http_parser:
         if any(self._trailer):
             result['trailer'] = self._trailer
 
+#        if len(self._body) > 0:
+#            result['body'] = "".join(self._body)
+#        else:
+#            result['body'] = ""
+        result['body'] = self._body
+            
         result['ip']      = self._ip
         result['port']    = self._port
 
@@ -88,6 +97,8 @@ class http_parser:
         self._method   = {}
         self._response = {}
         self._resp     = {}
+#        self._body     = b''
+        self._body     = ''
         self._header   = {}
         self._trailer  = {}
         self._length   = 0
@@ -230,12 +241,22 @@ class http_parser:
         else:
             return False
 
+    def _conv(self, data):
+        e = base64.b64encode(data)
+        return e.decode('utf-8');
+#        return data.decode('latin_1');
+
+
     def _skip_body(self):
         while len(self._data) > 0:
             num = sum([len(x) for x in self._data[0]])
             if num <= self._remain:
-                self._data.pop(0)
+                # self._dataがバッファ
+                # バッファのデータが、bodyの残りサイズより小さい場合
+                # は、一行だけ処理し、次のDATAが来るまで待つ。
+                data = self._data.pop(0)      #このデータを保存する。
                 self._remain -= num
+                self._body += self._conv(data[0])
 
                 if self._remain == 0:
                     if self._is_client:
@@ -245,12 +266,18 @@ class http_parser:
                         self._push_data()
                         self._state = self.__RESP
             else:
+                # self._dataがバッファ
+                # バッファのデータが、bodyの残りサイズより大きい場合
+                # は、バッファ内のデータが残りサイズになるまで、取り出す。
                 while True:
                     num = len(self._data[0][0])
                     if num <= self._remain:
-                        self._data[0].pop(0)
+                        data = self._data[0].pop(0)
+                        print('skip body data=', data ,file=sys.stderr)
                         self._remain -= num
+                        self._body += self._conv(data[0])
                     else:
+                        self._body += self._conv(self._data[0][0][:self._remain-1])
                         self._data[0][0] = self._data[0][0][self._remain:]
                         self._remain  = 0
 
