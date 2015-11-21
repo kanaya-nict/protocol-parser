@@ -529,17 +529,17 @@ ns_print(ns_msg* ns_handle, int format,
            printf("+----------------+----------------+\n");
        }
         for (i=0; i<answer_count; i++) {
-            if (! rr_print(ns_handle, ns_s_an, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_an, i, format))
                 break;
             printf("+----------------+----------------+\n");
         }
         for (i=0; i<authority_count; i++) {
-            if (! rr_print(ns_handle, ns_s_ns, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_ns, i, format))
                 break;
             printf("+----------------+----------------+\n");
         }
         for (i=0; i<additional_count; i++) {
-            if (! rr_print(ns_handle, ns_s_ar, i, format) == 0)
+            if (! rr_print(ns_handle, ns_s_ar, i, format))
                 break;
             printf("+----------------+----------------+\n");
         }

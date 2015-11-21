@@ -7,7 +7,7 @@ import sys, traceback
 import base64
 
 class http_parser:
-    def __init__(self, is_client = True):
+    def __init__(self, is_client = True, is_body = True):
         self.__METHOD  = 0
         self.__RESP    = 1
         self.__HEADER  = 2
@@ -32,12 +32,12 @@ class http_parser:
         self._method   = {}
         self._response = {}
         self._resp     = {}
-#        self._body     = b''
         self._body     = ''
         self._header   = {}
         self._trailer  = {}
         self._length   = 0
         self._remain   = 0
+        self._is_body  = is_body
 
         self.__is_error = False
 
@@ -83,21 +83,17 @@ class http_parser:
         if any(self._trailer):
             result['trailer'] = self._trailer
 
-#        if len(self._body) > 0:
-#            result['body'] = "".join(self._body)
-#        else:
-#            result['body'] = ""
-        result['body'] = self._body
+        if self._is_body:
+            result['body'] = self._body
             
-        result['ip']      = self._ip
-        result['port']    = self._port
+        result['ip']   = self._ip
+        result['port'] = self._port
 
         self.result.append(result)
 
         self._method   = {}
         self._response = {}
         self._resp     = {}
-#        self._body     = b''
         self._body     = ''
         self._header   = {}
         self._trailer  = {}
@@ -244,19 +240,19 @@ class http_parser:
     def _conv(self, data):
         e = base64.b64encode(data)
         return e.decode('utf-8');
-#        return data.decode('latin_1');
-
 
     def _skip_body(self):
         while len(self._data) > 0:
             num = sum([len(x) for x in self._data[0]])
             if num <= self._remain:
-                # self._dataがバッファ
-                # バッファのデータが、bodyの残りサイズより小さい場合
-                # は、一行だけ処理し、次のDATAが来るまで待つ。
-                data = self._data.pop(0)      #このデータを保存する。
+                # self._data is buffer for body
+                # if the length of data in buffer is less than the length of
+                # body, consume only a line and wait next data
+                data = self._data.pop(0) # must be stored
                 self._remain -= num
-                self._body += self._conv(data[0])
+
+                if self._is_body:
+                    self._body += self._conv(data[0])
 
                 if self._remain == 0:
                     if self._is_client:
@@ -266,18 +262,21 @@ class http_parser:
                         self._push_data()
                         self._state = self.__RESP
             else:
-                # self._dataがバッファ
-                # バッファのデータが、bodyの残りサイズより大きい場合
-                # は、バッファ内のデータが残りサイズになるまで、取り出す。
+                # self._data is buffer for body
+                # if the lenght of data in buffer is greater than the length of
+                # body, consume until buffer is full.
                 while True:
                     num = len(self._data[0][0])
                     if num <= self._remain:
                         data = self._data[0].pop(0)
-                        print('skip body data=', data ,file=sys.stderr)
                         self._remain -= num
-                        self._body += self._conv(data[0])
+
+                        if self._is_body:
+                            print('skip body data=', data ,file=sys.stderr)
+                            self._body += self._conv(data[0])
                     else:
-                        self._body += self._conv(self._data[0][0][:self._remain-1])
+                        if self._is_body:
+                            self._body += self._conv(self._data[0][0][:self._remain-1])
                         self._data[0][0] = self._data[0][0][self._remain:]
                         self._remain  = 0
 
@@ -321,7 +320,7 @@ class http_parser:
         return (False, None)
 
 class sftap_http:
-    def __init__(self, uxpath):
+    def __init__(self, uxpath, is_body):
         self._content = []
 
         self._conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -333,7 +332,8 @@ class sftap_http:
 
         self.__HEADER = 0
         self.__DATA   = 1
-        self._state = self.__HEADER
+        self._state   = self.__HEADER
+        self._is_body = is_body
 
         self._http = {}
 
@@ -359,14 +359,16 @@ class sftap_http:
                 if self._header['event'] == 'DATA':
                     self._state = self.__DATA
                 elif self._header['event'] == 'CREATED':
-                    id = self._get_id()
-                    self._http[id] = (http_parser(is_client = True),
-                                      http_parser(is_client = False))
+                    sid = self._get_id()
+                    self._http[sid] = (http_parser(is_client = True,
+                                                   is_body = self._is_body),
+                                       http_parser(is_client = False,
+                                                   is_body = self._is_body))
                 elif self._header['event'] == 'DESTROYED':
                     try:
-                        id = self._get_id()
-                        c = self._http[id][0]
-                        s = self._http[id][1]
+                        sid = self._get_id()
+                        c = self._http[sid][0]
+                        s = self._http[sid][1]
 
                         while len(c.result) > 0 or len(s.result) > 0:
                             if len(c.result) > 0 and len(s.result):
@@ -388,7 +390,7 @@ class sftap_http:
                                                     separators=(',', ':'),
                                                     ensure_ascii = False))
 
-                        del self._http[id]
+                        del self._http[sid]
                     except KeyError:
                         pass
             elif self._state == self.__DATA:
@@ -398,19 +400,19 @@ class sftap_http:
                 if result == False:
                     break
 
-                id = self._get_id()
+                sid = self._get_id()
 
-                if id in self._http:
+                if sid in self._http:
                     if self._header['match'] == 'up':
-                        self._http[id][0].in_data(buf, self._header)
+                        self._http[sid][0].in_data(buf, self._header)
                     elif self._header['match'] == 'down':
-                        self._http[id][1].in_data(buf, self._header)
+                        self._http[sid][1].in_data(buf, self._header)
 
                     while True:
-                        if (len(self._http[id][0].result) > 0 and
-                            len(self._http[id][1].result) > 0):
-                            c = self._http[id][0].result.pop(0)
-                            s = self._http[id][1].result.pop(0)
+                        if (len(self._http[sid][0].result) > 0 and
+                            len(self._http[sid][1].result) > 0):
+                            c = self._http[sid][0].result.pop(0)
+                            s = self._http[sid][1].result.pop(0)
                             print(json.dumps({'client': c, 'server': s},
                                              separators=(',', ':'),
                                              ensure_ascii = False))
@@ -494,7 +496,11 @@ def main():
     if len(sys.argv) > 1:
         uxpath = sys.argv[1]
 
-    parser = sftap_http(uxpath)
+    is_body = True
+    if len(sys.argv) > 2 and sys.argv[2] == 'nobody':
+        is_body = False
+
+    parser = sftap_http(uxpath, is_body)
     parser.run()
 
 if __name__ == '__main__':
