@@ -76,13 +76,32 @@ function parse_header(data::ASCIIString)
     h = rstrip(data)
 end
 
-function in_client_data(proxy::http_proxy, header, id, bytes)
-    if proxy.flows[id].up_state != HTTP_BODY
+function gen_sftap_header(d, len)
+    string("ip1=", d["ip1"], ",ip2=", d["ip2"],
+           ",port1=", d["port1"], ",port2=", d["port2"],
+           ",hop=", d["hop"], ",l3=", d["l3"], ",l4=", d["l4"],
+           ",event=", d["event"], ",from=", d["from"], ",len=", len, "\n")
+end
+
+function in_client_data(proxy::http_proxy, header, hdic, id, bytes)
+    if proxy.flows[id].up_state == HTTP_BODY
+        write(proxy.sock_lb7, header)
+        write(proxy.sock_lb7, bytes)
+        return
+    else
         append!(proxy.flows[id].up, bytes)
     end
 
     while true
         if proxy.flows[id].up_state == HTTP_BODY
+            # write to loopback7
+            len = length(proxy.flows[id].up)
+            if len > 0
+                h = gen_sftap_header(hdic, len)
+                write(proxy.sock_lb7, h)
+                write(proxy.sock_lb7, proxy.flows[id].up)
+            end
+
             return
         else
             if proxy.flows[id].up_state == HTTP_INIT
@@ -91,6 +110,7 @@ function in_client_data(proxy::http_proxy, header, id, bytes)
                     return
                 else
                     method = parse_method(line)
+                    print(header)
                     println(method)
                     proxy.flows[id].up_state = HTTP_HEADER
                 end
@@ -98,25 +118,36 @@ function in_client_data(proxy::http_proxy, header, id, bytes)
                 line = removeline(proxy.flows[id].up)
                 if line == false
                     return
-                elseif length(rstrip(line)) == 0
+                elseif line == "\r\n"
                     proxy.flows[id].up_state = HTTP_BODY
-                    # write to loopback7
                 else
-                    header = parse_header(line)
-                    println(header)
+                    h = parse_header(line)
+                    println(h)
                 end
             end
         end
     end
 end
 
-function in_server_data(proxy::http_proxy, header, id, bytes)
-    if proxy.flows[id].down_state != HTTP_BODY
+function in_server_data(proxy::http_proxy, header, hdic, id, bytes)
+    if proxy.flows[id].down_state == HTTP_BODY
+        write(proxy.sock_lb7, header)
+        write(proxy.sock_lb7, bytes)
+        return
+    else
         append!(proxy.flows[id].down, bytes)
     end
 
     while true
         if proxy.flows[id].down_state == HTTP_BODY
+            # write to loopback7
+            len = length(proxy.flows[id].up)
+            if len > 0
+                h = gen_sftap_header(hdic, len)
+                write(proxy.sock_lb7, h)
+                write(proxy.sock_lb7, proxy.flows[id].up)
+            end
+
             return
         else
             if proxy.flows[id].down_state == HTTP_INIT
@@ -125,6 +156,7 @@ function in_server_data(proxy::http_proxy, header, id, bytes)
                     return
                 else
                     resp = parse_response(line)
+                    print(header)
                     println(resp)
                     proxy.flows[id].down_state = HTTP_HEADER
                 end
@@ -134,10 +166,9 @@ function in_server_data(proxy::http_proxy, header, id, bytes)
                     return
                 elseif line == "\r\n"
                     proxy.flows[id].down_state = HTTP_BODY
-                    # write to loopback7
                 else
-                    header = parse_header(line)
-                    println(header)
+                    h = parse_header(line)
+                    println(h)
                 end
             end
         end
@@ -146,9 +177,9 @@ end
 
 function in_data(proxy::http_proxy, header, hdic, id, bytes)
     if hdic["match"] == "up"
-        in_client_data(proxy, header, id, bytes)
+        in_client_data(proxy, header, hdic, id, bytes)
     else # down
-        in_server_data(proxy, header, id, bytes)
+        in_server_data(proxy, header, hdic, id, bytes)
     end
 end
 
@@ -166,11 +197,13 @@ function run(proxy::http_proxy)
             proxy.flows[id] = http_flow(Vector{UInt8}(), Vector{UInt8}(),
                                         HTTP_INIT, HTTP_INIT,
                                         http_method("", "", ""))
+            write(proxy.sock_lb7, header)
         else # DESTROYED
             delete!(proxy.flows, id)
+            write(proxy.sock_lb7, header)
         end
     end
 end
 
-proxy = http_proxy("/tmp/sf-tap/tcp/http", "/tmp/sf-tap/loopback7")
+proxy = http_proxy("/tmp/sf-tap/tcp/http_proxy", "/tmp/sf-tap/loopback7")
 run(proxy)
