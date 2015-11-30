@@ -12,7 +12,7 @@ type flow_id
     hop::UInt8
 end
 
-@enum http_state HTTP_HEADER HTTP_BODY
+@enum http_state HTTP_INIT HTTP_HEADER HTTP_BODY
 
 type flow
     up
@@ -40,18 +40,29 @@ function header2dic(header::ASCIIString)
     return hdic, id
 end
 
-function read_line_uint8v(vec)
-    line = Vector{Uint8}()
-    for v in vec
-        for bytes in v
-            findfirst(bytes, Uint8('\n'))
+function parse_method(data::Vector{UInt8})
+end
+
+function parse_responce(data::Vector{UInt8})
+end
+
+function in_data(hstr, hdic, flows::flow, id::flow_id, lp7)
+    if hdic["match"] == "up"
+        if flows[id].up_state == HTTP_BODY
+        else
+            append!(flows[id].up, bytes)
+        end
+    else # down
+        if flows[id].down_state == HTTP_BODY
+        else
+            append!(flows[id].down, bytes)
         end
     end
 end
 
 function http_proxy(path, lpath)
     c   = connect(path)
-    lpc = connect(lpath)
+    lp7 = connect(lpath)
 
     flows = Dict{flow_id, flow}()
 
@@ -65,14 +76,11 @@ function http_proxy(path, lpath)
         if hdic["event"] == "DATA"
             bytes = readbytes(c, parse(Int, hdic["len"]))
             if haskey(flows, id)
-                if hdic["event"] == "up"
-                    push!(flows[id].up, bytes)
-                else
-                    push!(flows[id].down, bytes)
-                end
+                in_data(header, hdic, flows, id, lp7)
             end
         elseif hdic["event"] == "CREATED"
-            flows[id] = flow([], [], HTTP_HEADER, HTTP_HEADER)
+            flows[id] = flow(Vector{UInt8}(), Vector{UInt8}(),
+                             HTTP_INIT, HTTP_INIT)
         else # DESTROYED
             delete!(flows, id)
         end
