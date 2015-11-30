@@ -4,21 +4,36 @@
 #
 # Handler for HTTP Proxy in Julia Language
 
-type flow_id
-    ip1::ASCIIString
-    ip2::ASCIIString
-    port1::UInt16
-    port2::UInt16
-    hop::UInt8
-end
-
 @enum http_state HTTP_INIT HTTP_HEADER HTTP_BODY
 
-type flow
-    up
-    down
+type http_method
+    method::ASCIIString
+    url::ASCIIString
+    ver::ASCIIString
+end
+
+type http_response
+    code::ASCIIString
+    ver::ASCIIString
+    comment::ASCIIString
+end
+
+type http_flow
+    up::Vector{UInt8}
+    down::Vector{UInt8}
     up_state::http_state
     down_state::http_state
+    method::http_method
+end
+
+type http_proxy
+    sock_proxy::Base.PipeEndpoint
+    sock_lb7::Base.PipeEndpoint
+    flows::Dict
+
+    function http_proxy(path, l7path)
+        new(connect(path), connect(l7path), Dict())
+    end
 end
 
 function header2dic(header::ASCIIString)
@@ -33,58 +48,129 @@ function header2dic(header::ASCIIString)
         i += 2
     end
 
-    id = flow_id(hdic["ip1"], hdic["ip2"],
-                 parse(UInt16, hdic["port1"]), parse(UInt16, hdic["port2"]),
-                 parse(UInt8, hdic["hop"]))
+    id = (hdic["ip1"], hdic["ip2"],
+          parse(UInt16, hdic["port1"]), parse(UInt16, hdic["port2"]),
+          parse(UInt8, hdic["hop"]))
 
     return hdic, id
 end
 
-function parse_method(data::Vector{UInt8})
+function removeline(data::Vector{UInt8})
+    idx = findfirst(data, UInt8('\n'))
+    if idx > 0
+        return ascii(splice!(data, 1:idx))
+    end
+
+    return false
 end
 
-function parse_responce(data::Vector{UInt8})
+function parse_method(data::ASCIIString)
+    m = rstrip(data)
 end
 
-function in_data(hstr, hdic, flows::flow, id::flow_id, lp7)
-    if hdic["match"] == "up"
-        if flows[id].up_state == HTTP_BODY
+function parse_response(data::ASCIIString)
+    r = rstrip(data)
+end
+
+function parse_header(data::ASCIIString)
+    h = rstrip(data)
+end
+
+function in_client_data(proxy::http_proxy, header, id, bytes)
+    if proxy.flows[id].up_state != HTTP_BODY
+        append!(proxy.flows[id].up, bytes)
+    end
+
+    while true
+        if proxy.flows[id].up_state == HTTP_BODY
+            return
         else
-            append!(flows[id].up, bytes)
-        end
-    else # down
-        if flows[id].down_state == HTTP_BODY
-        else
-            append!(flows[id].down, bytes)
+            if proxy.flows[id].up_state == HTTP_INIT
+                line = removeline(proxy.flows[id].up)
+                if line == false
+                    return
+                else
+                    method = parse_method(line)
+                    println(method)
+                    proxy.flows[id].up_state = HTTP_HEADER
+                end
+            else # HTTP_HEADER
+                line = removeline(proxy.flows[id].up)
+                if line == false
+                    return
+                elseif length(rstrip(line)) == 0
+                    proxy.flows[id].up_state = HTTP_BODY
+                    # write to loopback7
+                else
+                    header = parse_header(line)
+                    println(header)
+                end
+            end
         end
     end
 end
 
-function http_proxy(path, lpath)
-    c   = connect(path)
-    lp7 = connect(lpath)
+function in_server_data(proxy::http_proxy, header, id, bytes)
+    if proxy.flows[id].down_state != HTTP_BODY
+        append!(proxy.flows[id].down, bytes)
+    end
 
-    flows = Dict{flow_id, flow}()
+    while true
+        if proxy.flows[id].down_state == HTTP_BODY
+            return
+        else
+            if proxy.flows[id].down_state == HTTP_INIT
+                line = removeline(proxy.flows[id].down)
+                if line == false
+                    return
+                else
+                    resp = parse_response(line)
+                    println(resp)
+                    proxy.flows[id].down_state = HTTP_HEADER
+                end
+            else # HTTP_HEADER                
+                line = removeline(proxy.flows[id].down)
+                if line == false
+                    return
+                elseif line == "\r\n"
+                    proxy.flows[id].down_state = HTTP_BODY
+                    # write to loopback7
+                else
+                    header = parse_header(line)
+                    println(header)
+                end
+            end
+        end
+    end
+end
 
-    while ! eof(c)
-        header = readline(c)
+function in_data(proxy::http_proxy, header, hdic, id, bytes)
+    if hdic["match"] == "up"
+        in_client_data(proxy, header, id, bytes)
+    else # down
+        in_server_data(proxy, header, id, bytes)
+    end
+end
+
+function run(proxy::http_proxy)
+    while ! eof(proxy.sock_proxy)
+        header = readline(proxy.sock_proxy)
         hdic, id = header2dic(header)
 
-        println(hdic)
-        println(id)
-
         if hdic["event"] == "DATA"
-            bytes = readbytes(c, parse(Int, hdic["len"]))
-            if haskey(flows, id)
-                in_data(header, hdic, flows, id, lp7)
+            bytes = readbytes(proxy.sock_proxy, parse(Int, hdic["len"]))
+            if haskey(proxy.flows, id)
+                in_data(proxy, header, hdic, id, bytes)
             end
         elseif hdic["event"] == "CREATED"
-            flows[id] = flow(Vector{UInt8}(), Vector{UInt8}(),
-                             HTTP_INIT, HTTP_INIT)
+            proxy.flows[id] = http_flow(Vector{UInt8}(), Vector{UInt8}(),
+                                        HTTP_INIT, HTTP_INIT,
+                                        http_method("", "", ""))
         else # DESTROYED
-            delete!(flows, id)
+            delete!(proxy.flows, id)
         end
     end
 end
 
-http_proxy("/tmp/sf-tap/tcp/http", "/tmp/sf-tap/loopback7")
+proxy = http_proxy("/tmp/sf-tap/tcp/http", "/tmp/sf-tap/loopback7")
+run(proxy)
