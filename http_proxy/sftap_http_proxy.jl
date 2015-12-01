@@ -53,20 +53,21 @@ function print_json(hdic, flow::http_flow)
        hdic["match"] == "down" && hdic["from"] == "2"
         sip   = hdic["ip2"]
         cip   = hdic["ip1"]
-        sport = hdic["port2"]
-        cport = hdic["port1"]
+        sport = parse(Int, hdic["port2"])
+        cport = parse(Int, hdic["port1"])
     else
         sip   = hdic["ip1"]
         cip   = hdic["ip2"]
-        sport = hdic["port1"]
-        cport = hdic["port2"]
+        sport = parse(Int, hdic["port1"])
+        cport = parse(Int, hdic["port2"])
     end
-    
+
     d = Dict()
     d["server"] = Dict()
     d["server"]["ip"] = sip
     d["server"]["port"] = sport
     d["server"]["response"] = flow.response
+
     if ! isempty(length(flow.server_header))
         d["server"]["header"] = flow.server_header
     end
@@ -75,6 +76,7 @@ function print_json(hdic, flow::http_flow)
     d["client"]["ip"] = cip
     d["client"]["port"] = cport
     d["client"]["method"] = flow.method
+
     if ! isempty(flow.client_header)
         d["client"]["header"] = flow.client_header
     end
