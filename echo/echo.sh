@@ -4,7 +4,7 @@
 #
 # Requirement: bash version >= 4.0
 #
-# usage: 
+# usage:
 #   socat /tmp/sf-tap/tcp/echo - | bash  echo.sh
 #
 declare -A network_ident
@@ -28,9 +28,10 @@ trap 'show_count7' 2
 #
 # example header is the below
 #   ex. ip1=192.168.191.1,ip2=192.168.191.11,port1=56959,port2=9998,hop=0,l3=ipv4,l4=tcp,event=DATA,from=1,match=none,len=6
-# then we use only the tuple construction of ip, port, and hop
-# ip1=XXX.XXX.XXX.XXX,ip2=YYY.YYY.YYY.YYY,port1=ZZA,port2=ZZB,hop=ZZC:
+# then we use only the tuple construction of ip, port, hop and left_or_right
+#   ip1=XXX.XXX.XXX.XXX,ip2=YYY.YYY.YYY.YYY,port1=ZZA,port2=ZZB,hop=ZZC,[left,right]
 
+#
 ## ex. result
 #
 # ip1=192.168.191.1,ip2=192.168.191.11,port1=61155,port2=9998,hop=0,l3=ipv4,l4=tcp,event=CREATED
