@@ -1,8 +1,6 @@
-# UNDER IMPLEMENTING!
-#
-# *** THIS CODE DOES NOT WORK CURRENTRY ***
-#
 # Handler for HTTP Proxy in Julia Language
+
+import JSON
 
 @enum http_state HTTP_INIT HTTP_HEADER HTTP_BODY
 
@@ -13,8 +11,8 @@ type http_method
 end
 
 type http_response
-    code::ASCIIString
     ver::ASCIIString
+    code::ASCIIString
     comment::ASCIIString
 end
 
@@ -24,6 +22,9 @@ type http_flow
     up_state::http_state
     down_state::http_state
     method::http_method
+    response::http_response
+    client_header::Dict{ASCIIString, ASCIIString}
+    server_header::Dict{ASCIIString, ASCIIString}
 end
 
 type http_proxy
@@ -34,6 +35,51 @@ type http_proxy
     function http_proxy(path, l7path)
         new(connect(path), connect(l7path), Dict())
     end
+end
+
+function print_json(hdic, flow::http_flow)
+    if flow.up_state != HTTP_BODY || flow.down_state != HTTP_BODY
+        return
+    end
+
+    sip = ""
+    cip = ""
+    sport = ""
+    cport = ""
+
+    println(hdic)
+
+    if hdic["match"] == "up" && hdic["from"] == "1" ||
+       hdic["match"] == "down" && hdic["from"] == "2"
+        sip   = hdic["ip2"]
+        cip   = hdic["ip1"]
+        sport = hdic["port2"]
+        cport = hdic["port1"]
+    else
+        sip   = hdic["ip1"]
+        cip   = hdic["ip2"]
+        sport = hdic["port1"]
+        cport = hdic["port2"]
+    end
+    
+    d = Dict()
+    d["server"] = Dict()
+    d["server"]["ip"] = sip
+    d["server"]["port"] = sport
+    d["server"]["response"] = flow.response
+    if ! isempty(length(flow.server_header))
+        d["server"]["header"] = flow.server_header
+    end
+
+    d["client"] = Dict()
+    d["client"]["ip"] = cip
+    d["client"]["port"] = cport
+    d["client"]["method"] = flow.method
+    if ! isempty(flow.client_header)
+        d["client"]["header"] = flow.client_header
+    end
+
+    println(JSON.json(d))
 end
 
 function header2dic(header::ASCIIString)
@@ -65,15 +111,18 @@ function removeline(data::Vector{UInt8})
 end
 
 function parse_method(data::ASCIIString)
-    m = rstrip(data)
+    sp = split(rstrip(data), [' '], limit=3)
+    try http_method(sp[1], sp[2], sp[3]) catch http_method("", "", "") end
 end
 
 function parse_response(data::ASCIIString)
-    r = rstrip(data)
+    sp = split(rstrip(data), [' '], limit=3)
+    try http_response(sp[1], sp[2], sp[3]) catch http_response("", "", "") end
 end
 
 function parse_header(data::ASCIIString)
-    h = rstrip(data)
+    sp = split(rstrip(data), [':'], limit=2)
+    try (sp[1], lstrip(sp[2])) catch ("", "") end
 end
 
 function gen_sftap_header(d, len)
@@ -110,9 +159,8 @@ function in_client_data(proxy::http_proxy, header, hdic, id, bytes)
                     return
                 else
                     method = parse_method(line)
-                    print(header)
-                    println(method)
                     proxy.flows[id].up_state = HTTP_HEADER
+                    proxy.flows[id].method   = method
                 end
             else # HTTP_HEADER
                 line = removeline(proxy.flows[id].up)
@@ -120,9 +168,10 @@ function in_client_data(proxy::http_proxy, header, hdic, id, bytes)
                     return
                 elseif line == "\r\n"
                     proxy.flows[id].up_state = HTTP_BODY
+                    print_json(hdic, proxy.flows[id])
                 else
                     h = parse_header(line)
-                    println(h)
+                    proxy.flows[id].client_header[h[1]] = h[2]
                 end
             end
         end
@@ -156,9 +205,8 @@ function in_server_data(proxy::http_proxy, header, hdic, id, bytes)
                     return
                 else
                     resp = parse_response(line)
-                    print(header)
-                    println(resp)
                     proxy.flows[id].down_state = HTTP_HEADER
+                    proxy.flows[id].response   = resp
                 end
             else # HTTP_HEADER                
                 line = removeline(proxy.flows[id].down)
@@ -166,9 +214,10 @@ function in_server_data(proxy::http_proxy, header, hdic, id, bytes)
                     return
                 elseif line == "\r\n"
                     proxy.flows[id].down_state = HTTP_BODY
+                    print_json(hdic, proxy.flows[id])
                 else
                     h = parse_header(line)
-                    println(h)
+                    proxy.flows[id].server_header[h[1]] = h[2]
                 end
             end
         end
@@ -196,7 +245,10 @@ function run(proxy::http_proxy)
         elseif hdic["event"] == "CREATED"
             proxy.flows[id] = http_flow(Vector{UInt8}(), Vector{UInt8}(),
                                         HTTP_INIT, HTTP_INIT,
-                                        http_method("", "", ""))
+                                        http_method("", "", ""),
+                                        http_response("", "", ""),
+                                        Dict{ASCIIString, ASCIIString}(),
+                                        Dict{ASCIIString, ASCIIString}())
             write(proxy.sock_lb7, header)
         else # DESTROYED
             delete!(proxy.flows, id)
