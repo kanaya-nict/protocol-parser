@@ -2,40 +2,13 @@
 #
 # Show count of layer 7 record
 #
-# Requirement: bash version >= 4.0
+# Requirement: bash version >= 4.0, base64
 #
 # usage:
-#   socat /tmp/sf-tap/tcp/echo - | bash  echo.sh
-#
-declare -A network_ident
-
-function show_count7() {
-  echo -- current dump result --
-  for key in ${!network_ident[@]}; do
-    echo "${key} => ${network_ident[$key]}"
-  done
-  echo -------------------------
-}
-
-trap 'show_count7' 2
-
-# network_ident["IDENTFIER"]
-# IDENTFIER : XXX.XXX.XXX.XXX:ZZA,YYY.YYY.YYY.YYY:ZZB,hop:ZZC,LEFT_OR_RIGHT
-# LEFT_OR_RIGHT : left
-#               : right
-# 
-#   The XYZ or others mean ip or port value.
-#
-# example header is the below
-#   ex. ip1=192.168.191.1,ip2=192.168.191.11,port1=56959,port2=9998,hop=0,l3=ipv4,l4=tcp,event=DATA,from=1,match=none,len=6
-# then we use only the tuple construction of ip, port, hop and left_or_right
-#   ip1=XXX.XXX.XXX.XXX,ip2=YYY.YYY.YYY.YYY,port1=ZZA,port2=ZZB,hop=ZZC,[left,right]
-
-#
-## ex. result
+#   socat /tmp/sf-tap/tcp/echo - | bash echo.sh
 #
 # ip1=192.168.191.1,ip2=192.168.191.11,port1=61155,port2=9998,hop=0,l3=ipv4,l4=tcp,event=CREATED
-# ip1=192.168.191.1,ip2=192.168.191.11,port1=61155,port2=9998,hop=0,l3=ipv4,l4=tcp,event=DATA,from=1,match=none,len=6
+# ip1=192.168.191.1,ip2=192.168.191.11,port1=61155,port2=9998,hop=0,l3=ipv4,l4=tcp,event=DATA,from=1,match=none,len=7
 # ... snip ...
 # ip1=192.168.191.1,ip2=192.168.191.11,port1=61155,port2=9998,hop=0,l3=ipv4,l4=tcp,event=DESTROYED
 
@@ -47,31 +20,29 @@ function header_parse() {
   local port1=${elems[2]#port1=}
   local port2=${elems[3]#port2=}
   local hop=${elems[4]#hop=}
-  local lr=${elems[8]#from=}
 
   local status=${elems[7]#event=}
-  # echo header: $header
-  # echo debug-status: $status
   retval="NEXT"
   for cont_status in "CREATED" "DESTROYED"
   do
-    if [ x"$cont_status"=x"$status" ]; then
+    if [ x"$cont_status" = x"$status" ]; then
       retval="NONE"
       break
     fi
   done 
+  if [ x"$retval" != x"NONE" ]; then
+    local lr=${elems[8]#from=}
+    local len="${elems[10]#len=}"
+    retval="${retval}=${len}"
+  fi 
   if [ x"1" = x"$lr" ]; then
     arrow="left"
   else
     arrow="right"
   fi
-  key="$ip1:$port1,$ip2,$port2,hop:$hop,$arrow"
+  local key="$ip1,$port1,$ip2,$port2,$hop,$status,$arrow"
 
-  if [ x"CREATED"=x"$status" ]; then
-    let network_ident[$key]="0"
-    # echo CREATED: network_ident =  ${network_ident[$key]}
-  fi
-  echo $retval:$key
+  echo "$retval:$key"
 }
 
 # test_case()
@@ -80,18 +51,42 @@ function header_parse() {
 #
 
 function main() {
-  local has_next="NONE"
+  local has_next_status="NONE"
   while read line
   do
-    echo "line:" $line
     val=$(header_parse $line)
-    has_next=${val%%:*}
-    key=${val#*:}
-    if [ x"$has_next"=x"NEXT" ]; then
-     read body
-     # echo body: $body  # if you want to dump layer 7 data
-     # network_ident[$key]=$(echo ${network_ident[$key]} + 1 | bc)
+    local retval=${val%%:*}
+    has_next_status=${retval%%=*}
+    local key=${val#*:}
+    local body=""
+    if [ x"$has_next_status" = x"NEXT" ]; then
+      local len=${retval#*=}
+      body=$(head -c $len | base64)
+      comma_or_not=","
+      body_header_data="\"body\":\"$body\",\n  \"len\":\"$len\""
     fi
+
+    local elems=( $(echo $key | tr -s ',' ' ') )
+    local ip1=${elems[0]}
+    local ip2=${elems[1]}
+    local port1=${elems[2]}
+    local port2=${elems[3]}
+    local hop=${elems[4]}
+    local event=${elems[5]}
+    local arrow=${elems[6]}
+
+    cat<<JSON_TEMPLATE
+{
+ "ip1":"$ip1",
+ "port1":"$port1",
+ "ip2":"$ip2",
+ "port2":"$port2",
+ "hop":"$hop",
+ "event":"$event",
+ "arrow":"$arrow" $comma_or_not
+ $( echo -e $body_header_data  )
+}
+JSON_TEMPLATE
   done
 }
 
