@@ -546,6 +546,8 @@ ns_print(ns_msg* ns_handle, int format,
     } else if (format == 2) {
         printf("{");
 
+        printf("\"time\":%lf,", atof(header["time"].c_str()));
+
         printf("\"src\":{");
         if (header["from"] == "1") {
             printf("\"ip\":\"%s\",", header["ip1"].c_str());
