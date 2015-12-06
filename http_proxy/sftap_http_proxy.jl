@@ -49,8 +49,6 @@ function print_json(hdic, flow::http_flow)
     sport = ""
     cport = ""
 
-    println(hdic)
-
     if hdic["match"] == "up" && hdic["from"] == "1" ||
        hdic["match"] == "down" && hdic["from"] == "2"
         sip   = hdic["ip2"]
