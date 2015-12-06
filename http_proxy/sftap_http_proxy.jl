@@ -25,6 +25,8 @@ type http_flow
     response::http_response
     client_header::Dict{ASCIIString, ASCIIString}
     server_header::Dict{ASCIIString, ASCIIString}
+    client_time::Float64
+    server_time::Float64
 end
 
 type http_proxy
@@ -64,18 +66,20 @@ function print_json(hdic, flow::http_flow)
 
     d = Dict()
     d["server"] = Dict()
-    d["server"]["ip"] = sip
-    d["server"]["port"] = sport
+    d["server"]["ip"]       = sip
+    d["server"]["port"]     = sport
     d["server"]["response"] = flow.response
+    d["server"]["response"] = flow.server_time
 
     if ! isempty(length(flow.server_header))
         d["server"]["header"] = flow.server_header
     end
 
     d["client"] = Dict()
-    d["client"]["ip"] = cip
-    d["client"]["port"] = cport
+    d["client"]["ip"]     = cip
+    d["client"]["port"]   = cport
     d["client"]["method"] = flow.method
+    d["client"]["time"]   = flow.client_time
 
     if ! isempty(flow.client_header)
         d["client"]["header"] = flow.client_header
@@ -161,8 +165,9 @@ function in_client_data(proxy::http_proxy, header, hdic, id, bytes)
                     return
                 else
                     method = parse_method(line)
-                    proxy.flows[id].up_state = HTTP_HEADER
-                    proxy.flows[id].method   = method
+                    proxy.flows[id].client_time = parse(Float64, hdic["time"])
+                    proxy.flows[id].up_state    = HTTP_HEADER
+                    proxy.flows[id].method      = method
                 end
             else # HTTP_HEADER
                 line = removeline(proxy.flows[id].up)
@@ -207,8 +212,9 @@ function in_server_data(proxy::http_proxy, header, hdic, id, bytes)
                     return
                 else
                     resp = parse_response(line)
-                    proxy.flows[id].down_state = HTTP_HEADER
-                    proxy.flows[id].response   = resp
+                    proxy.flows[id].server_time = parse(Float64, hdic["time"])
+                    proxy.flows[id].down_state  = HTTP_HEADER
+                    proxy.flows[id].response    = resp
                 end
             else # HTTP_HEADER                
                 line = removeline(proxy.flows[id].down)
@@ -250,7 +256,8 @@ function run(proxy::http_proxy)
                                         http_method("", "", ""),
                                         http_response("", "", ""),
                                         Dict{ASCIIString, ASCIIString}(),
-                                        Dict{ASCIIString, ASCIIString}())
+                                        Dict{ASCIIString, ASCIIString}(),
+                                        0.0, 0.0)
             write(proxy.sock_lb7, header)
         else # DESTROYED
             delete!(proxy.flows, id)

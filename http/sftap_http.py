@@ -5,6 +5,7 @@ import socket
 import json
 import sys, traceback
 import base64
+import datetime
 
 class http_parser:
     def __init__(self, is_client = True, is_body = True):
@@ -24,7 +25,7 @@ class http_parser:
         else:
             self._state = self.__RESP
 
-        self._data = []
+        self._data  = []
         self.result = []
 
         self._ip       = ''
@@ -38,6 +39,7 @@ class http_parser:
         self._length   = 0
         self._remain   = 0
         self._is_body  = is_body
+        self._time     = 0.0
 
         self.__is_error = False
 
@@ -88,6 +90,7 @@ class http_parser:
             
         result['ip']   = self._ip
         result['port'] = self._port
+        result['time'] = self._time
 
         self.result.append(result)
 
@@ -105,9 +108,11 @@ class http_parser:
             if self._state == self.__METHOD:
                 if not self._parse_method():
                     break
+                self._time = float(header['time'])
             elif self._state == self.__RESP:
                 if not self._parse_response():
                     break
+                self._time = float(header['time'])
             elif self._state == self.__HEADER:
                 if not self._parse_header():
                     break

@@ -13,17 +13,17 @@ sub parse_header{
     my $res;
 
     if($data{from} == 2 ){
-	$res = {
-	    src=>$data{ip2},
-	    dst=>$data{ip1},
-	    len=>$data{len}
-	};
+        $res = {
+            src=>$data{ip2},
+            dst=>$data{ip1},
+            len=>$data{len}
+        };
     } else {
-	$res = {
-	    src=>$data{ip1},
-	    dst=>$data{ip2},
-	    len=>$data{len}
-	};
+        $res = {
+            src=>$data{ip1},
+            dst=>$data{ip2},
+            len=>$data{len}
+        };
     };
     
     return $res;
@@ -35,11 +35,11 @@ sub parse_body{
     my $org_line = encode_base64($line);
     $line=~ s/^\<(\d+)\>(\w+ \w+ \w+\:\w+\:\w+) ([^\s]+)\s+([a-zA-Z]+)//;
     my $res = {
-	pri=>$1,
-	date=>$2,
-	host=>$3,
-	tag=>$4,
-	row =>  $org_line
+        pri =>$1,
+        date=>$2,
+        host=>$3,
+        tag =>$4,
+        row =>$org_line
     };
     return $res;
 }
@@ -53,12 +53,12 @@ while(defined ($line = $s->getline())){
     my $header;
     my %data;
     if(defined ($header = parse_header($line))){
-	$data{header} = $header;
-	my $res; my $body;
-	$res = $s->read($body, $header->{len});
-	$data{body} = parse_body($body);
-	print encode_json(\%data), "\n";
+        $data{header} = $header;
+        my $res; my $body;
+        $res = $s->read($body, $header->{len});
+        $data{body} = parse_body($body);
+        print encode_json(\%data), "\n";
     }
 }
 
-    
+
