@@ -67,7 +67,7 @@ function print_json(hdic, flow::http_flow)
     d["server"]["ip"]       = sip
     d["server"]["port"]     = sport
     d["server"]["response"] = flow.response
-    d["server"]["response"] = flow.server_time
+    d["server"]["time"] = flow.server_time
 
     if ! isempty(length(flow.server_header))
         d["server"]["header"] = flow.server_header
