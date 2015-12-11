@@ -60,7 +60,7 @@ print_node_list1 bytes =
       addr <- inet_ntoa . Bin.runGet Bin.getWord32host . L.fromStrict . B.take 4 $ bytes
       putStr addr
       putStr "\","
-      putStr $ show . Bin.runGet Bin.getWord16be . L.fromStrict . B.take 2 . B.drop 4 $ bytes
+      putStr . show . Bin.runGet Bin.getWord16be . L.fromStrict . B.take 2 . B.drop 4 $ bytes
       putStr "]"
       print_node_list $ B.drop 6 bytes
   else
@@ -94,18 +94,10 @@ print_nodes_bin bytes =
 print_list_elm :: Bencode.BValue -> (B.ByteString -> IO ()) -> IO ()
 print_list_elm x f =
   case x of
-   Bencode.BDict dict ->
-     do
-       print_dict $ Map.toList dict
-   Bencode.BList list ->
-     do
-       print_list list f
-   Bencode.BString str ->
-     do
-       f str
-   _ ->
-     do
-       putStr $ show x
+   Bencode.BDict dict  -> print_dict $ Map.toList dict
+   Bencode.BList list  -> print_list list f
+   Bencode.BString str -> f str
+   _ -> putStr $ show x
 
 print_list_elm1 :: [Bencode.BValue] -> (B.ByteString -> IO ()) -> IO ()
 print_list_elm1 (x:xs) f =
