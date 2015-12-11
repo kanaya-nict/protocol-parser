@@ -1,9 +1,11 @@
+module Main where
 import Network.Socket
 import System.IO
 import Data.List.Split
 import qualified Data.ByteString as ByteString
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.AttoBencode as Bencode
 
 open_ux :: String -> IO Handle
 open_ux path =
@@ -14,12 +16,18 @@ open_ux path =
     hSetBuffering h (BlockBuffering Nothing)
     return h
 
+print_bencode :: Maybe Bencode.BValue -> IO ()
+print_bencode bc =
+  case bc of
+   Nothing  -> hPutStrLn stderr "parse error"
+   Just val -> putStrLn $ show val
+
 print_data :: System.IO.Handle -> String -> IO ()
 print_data h line =
   do
     putStrLn line
     bytes <- ByteString.hGet h len
-    putStrLn $ "read " ++ (show len)
+    print_bencode $ Bencode.decode bytes
   where
     m = header_str_to_map line
     len = get_data_len m
@@ -50,5 +58,5 @@ main_loop h =
 
 main =
   do
-    h <- open_ux "/tmp/sf-tap/udp/dns"
+    h <- open_ux "/tmp/sf-tap/udp/torrent_dht"
     main_loop h
