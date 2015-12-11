@@ -207,7 +207,6 @@ print_header _ = putStr ""
 print_data :: System.IO.Handle -> String -> IO ()
 print_data h line =
   do
-    putStrLn line
     bytes <- B.hGet h len
     putStr "{\"header\":{"
     print_header1 $ Map.toList m
