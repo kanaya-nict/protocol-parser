@@ -178,39 +178,80 @@ print_bencode bc =
    Just (Bencode.BDict dict) -> print_dict $ Map.toList dict
    _ -> hPutStrLn stderr "invalid data"
 
-print_header1 :: [(String, String)] -> IO ()
-print_header1 (x:xs) =
+print_ip_port :: String -> Maybe String -> Maybe String -> IO ()
+print_ip_port x (Just ip) (Just port) =
   do
     putStr "\""
-    putStr k
-    putStr "\":\""
-    putStr v
+    putStr x
+    putStr "\":{"
+    putStr "\"ip\":\""
+    putStr ip
+    putStr "\",\"port\":"
+    putStr port
+    putStr "}"
+print_ip_port x Nothing (Just port) =
+  do
     putStr "\""
-    print_header xs
-  where
-    (k, v) = x
-print_header1 _ = putStr ""
+    putStr x
+    putStr "\":{\"port\":"
+    putStr port
+    putStr "}"
+print_ip_port x (Just ip) Nothing =
+  do
+    putStr "\""
+    putStr x
+    putStr "\":{\"ip\":\""
+    putStr ip
+    putStr "\"}"
+print_ip_port x _ _ =
+  do
+    putStr "\""
+    putStr x
+    putStr "\":{}"
 
-print_header :: [(String, String)] -> IO ()
-print_header (x:xs) =
+print_time :: Maybe String -> IO ()
+print_time (Just time) =
   do
-    putStr ",\""
-    putStr k
-    putStr "\":\""
-    putStr v
-    putStr "\""
-    print_header xs
+    putStr "\"time\":"
+    putStr time
+print_time _ =
+  putStr "\"time\":0"
+
+print_header :: Map.Map String String -> IO ()
+print_header m =
+  do
+    print_ip_port "src" ip_src port_src
+    putStr ","
+    print_ip_port "dst" ip_dst port_dst
+    putStr ","
+    print_time time
   where
-    (k, v) = x
-print_header _ = putStr ""
+    from = Map.lookup "from" m
+    ip_src = case from of
+              Nothing  -> Nothing
+              Just "1" -> Map.lookup "ip1" m
+              Just "2" -> Map.lookup "ip2" m
+    ip_dst = case from of
+              Nothing  -> Nothing
+              Just "1" -> Map.lookup "ip2" m
+              Just "2" -> Map.lookup "ip1" m
+    port_src = case from of
+                Nothing  -> Nothing
+                Just "1" -> Map.lookup "port1" m
+                Just "2" -> Map.lookup "port2" m
+    port_dst = case from of
+                Nothing  -> Nothing
+                Just "1" -> Map.lookup "port2" m
+                Just "2" -> Map.lookup "port1" m
+    time = Map.lookup "time" m
 
 print_data :: System.IO.Handle -> String -> IO ()
 print_data h line =
   do
     bytes <- B.hGet h len
-    putStr "{\"header\":{"
-    print_header1 $ Map.toList m
-    putStr "},\"dht\":"
+    putStr "{"
+    print_header m
+    putStr ",\"bencode\":"
     print_bencode $ Bencode.decode bytes
     putStrLn "}"
   where
