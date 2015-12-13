@@ -159,11 +159,11 @@ print_dict_kv (k, v) =
           print_list list print_base64
      where
        key = C.unpack k
-   _ ->
+   Bencode.BInt val ->
      do
        print_str k
        putStr ":"
-       putStr $ show v
+       putStr $ show val
 
 print_str :: B.ByteString -> IO ()
 print_str x = putStr . JSON.encode . JSON.toJSString . C.unpack $ x
