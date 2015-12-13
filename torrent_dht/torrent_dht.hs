@@ -97,7 +97,7 @@ print_list_elm x f =
    Bencode.BDict dict  -> print_dict $ Map.toList dict
    Bencode.BList list  -> print_list list f
    Bencode.BString str -> f str
-   _ -> putStr $ show x
+   Bencode.BInt  val   -> putStr $ show x
 
 print_list_elm1 :: [Bencode.BValue] -> (B.ByteString -> IO ()) -> IO ()
 print_list_elm1 (x:xs) f =
