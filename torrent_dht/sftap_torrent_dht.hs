@@ -76,7 +76,7 @@ print_node_list bytes =
       addr <- inet_ntoa . Bin.runGet Bin.getWord32host . L.fromStrict . B.take 4 $ bytes
       putStr addr
       putStr "\","
-      putStr $ show . Bin.runGet Bin.getWord16be . L.fromStrict . B.take 2 . B.drop 4 $ bytes
+      putStr . show . Bin.runGet Bin.getWord16be . L.fromStrict . B.take 2 . B.drop 4 $ bytes
       putStr "]"
       print_node_list $ B.drop 6 bytes
   else
@@ -121,6 +121,13 @@ print_list x f =
     print_list_elm1 x f
     putStr "]"
 
+print_kv :: B.ByteString -> B.ByteString -> IO ()
+print_kv k v =
+  do
+    print_str k
+    putStr ":"
+    print_str v
+
 print_dict_kv :: (B.ByteString, Bencode.BValue) -> IO ()
 print_dict_kv (k, v) =
   case v of
@@ -133,11 +140,8 @@ print_dict_kv (k, v) =
      case key of
       "ip"    -> print_ip val
       "nodes" -> print_nodes_bin val
-      "y" ->
-        do
-          print_str k
-          putStr ":"
-          print_str val
+      "y" -> print_kv k val
+      "q" -> print_kv k val
       _ ->
         do
           print_str k
