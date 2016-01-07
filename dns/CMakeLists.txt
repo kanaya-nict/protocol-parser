@@ -1,5 +1,7 @@
 cmake_minimum_required (VERSION 2.6)
-cmake_policy(SET CMP0022 OLD)
+if(POLICY CMP0026)
+   cmake_policy(SET CMP0022 OLD)
+endif()
 
 IF(POLICY CMP0042)
   cmake_policy(SET CMP0042 NEW)
