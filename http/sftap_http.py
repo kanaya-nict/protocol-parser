@@ -32,7 +32,6 @@ class http_parser:
         self._port     = ''
         self._method   = {}
         self._response = {}
-        self._resp     = {}
         self._body     = b''
         self._header   = {}
         self._trailer  = {}
@@ -71,6 +70,14 @@ class http_parser:
             print(repr(traceback.format_tb(exc_traceback)), file=sys.stderr)
             print("*** tb_lineno:", exc_traceback.tb_lineno, file=sys.stderr)
 
+    def destroy(self):
+        if self._is_client:
+            if self._method:
+                self._push_data()
+        else:
+            if self._response:
+                self._push_data()
+
     def _push_data(self):
         result = {}
 
@@ -96,7 +103,6 @@ class http_parser:
 
         self._method   = {}
         self._response = {}
-        self._resp     = {}
         self._body     = b''
         self._header   = {}
         self._trailer  = {}
@@ -118,20 +124,19 @@ class http_parser:
                     break
             elif self._state == self.__BODY:
                 self._skip_body()
-                if self._remain > 0:
+                if self._remain != 0:
                     break
             elif self._state == self.__CHUNK_LEN:
                 if not self._parse_chunk_len():
                     break
             elif self._state == self.__CHUNK_BODY:
                 self._skip_body()
-                if self._remain > 0:
+                if self._remain != 0:
                     break
-
                 self._state = self.__CHUNK_LEN
             elif self._state == self.__CHUNK_END:
                 self._skip_body()
-                if self._remain > 0:
+                if self._remain != 0:
                     break
 
                 self._state = self.__TRAILER
@@ -225,11 +230,19 @@ class http_parser:
 
                     self._state = self.__CHUNK_LEN
                 elif self._is_client:
-                    self._push_data()
-                    self._state = self.__METHOD
+                    if self._method['ver'] == 'HTTP/1.0':
+                        self._remain = -1
+                        self._state = self.__BODY
+                    else:
+                        self._push_data()
+                        self._state = self.__METHOD
                 else:
-                    self._push_data()
-                    self._state = self.__RESP
+                    if self._response['ver'] == 'HTTP/1.0':
+                        self._remain = -1
+                        self._state = self.__BODY
+                    else:
+                        self._push_data()
+                        self._state = self.__RESP
             else:
                 sp = line.split(b': ')
 
@@ -245,7 +258,11 @@ class http_parser:
     def _skip_body(self):
         while len(self._data) > 0:
             num = sum([len(x) for x in self._data[0]])
-            if num <= self._remain:
+            if self._remain == -1:
+                data = self._data.pop(0)
+                if self._is_body:
+                    self._body += data[0]
+            elif num <= self._remain:
                 # self._data is buffer for body
                 # if the length of data in buffer is less than the length of
                 # body, consume only a line and wait next data
@@ -273,7 +290,6 @@ class http_parser:
                         self._remain -= num
 
                         if self._is_body:
-                            print('skip body data=', data ,file=sys.stderr)
                             self._body += data[0]
                     else:
                         if self._is_body:
@@ -370,6 +386,9 @@ class sftap_http:
                         sid = self._get_id()
                         c = self._http[sid][0]
                         s = self._http[sid][1]
+                        
+                        c.destroy()
+                        s.destroy()
 
                         while len(c.result) > 0 or len(s.result) > 0:
                             if len(c.result) > 0 and len(s.result):
