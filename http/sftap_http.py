@@ -33,7 +33,7 @@ class http_parser:
         self._method   = {}
         self._response = {}
         self._resp     = {}
-        self._body     = ''
+        self._body     = b''
         self._header   = {}
         self._trailer  = {}
         self._length   = 0
@@ -86,7 +86,7 @@ class http_parser:
             result['trailer'] = self._trailer
 
         if self._is_body:
-            result['body'] = self._body
+            result['body'] = base64.b64encode(self._body).decode('utf-8')
             
         result['ip']   = self._ip
         result['port'] = self._port
@@ -97,7 +97,7 @@ class http_parser:
         self._method   = {}
         self._response = {}
         self._resp     = {}
-        self._body     = ''
+        self._body     = b''
         self._header   = {}
         self._trailer  = {}
         self._length   = 0
@@ -242,10 +242,6 @@ class http_parser:
         else:
             return False
 
-    def _conv(self, data):
-        e = base64.b64encode(data)
-        return e.decode('utf-8');
-
     def _skip_body(self):
         while len(self._data) > 0:
             num = sum([len(x) for x in self._data[0]])
@@ -257,7 +253,7 @@ class http_parser:
                 self._remain -= num
 
                 if self._is_body:
-                    self._body += self._conv(data[0])
+                    self._body += data[0]
 
                 if self._remain == 0:
                     if self._is_client:
@@ -278,10 +274,10 @@ class http_parser:
 
                         if self._is_body:
                             print('skip body data=', data ,file=sys.stderr)
-                            self._body += self._conv(data[0])
+                            self._body += data[0]
                     else:
                         if self._is_body:
-                            self._body += self._conv(self._data[0][0][:self._remain-1])
+                            self._body += self._data[0][0][:self._remain - 1]
                         self._data[0][0] = self._data[0][0][self._remain:]
                         self._remain  = 0
 
