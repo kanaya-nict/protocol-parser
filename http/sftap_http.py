@@ -259,6 +259,7 @@ class http_parser:
         while len(self._data) > 0:
             num = sum([len(x) for x in self._data[0]])
             if self._remain == -1:
+                # if content-length or chunked is not exsisting in HTTP header, just read body
                 data = self._data.pop(0)
                 if self._is_body:
                     self._body += data[0]
@@ -269,33 +270,37 @@ class http_parser:
                 data = self._data.pop(0) # must be stored
                 self._remain -= num
 
-                if self._is_body:
+                if self._state != self.__CHUNK_END and self._is_body:
                     self._body += data[0]
 
                 if self._remain == 0:
-                    if self._is_client:
-                        self._push_data()
-                        self._state = self.__METHOD
-                    else:
-                        self._push_data()
-                        self._state = self.__RESP
+                    if self._state == self.__BODY:
+                        if self._is_client:
+                            self._push_data()
+                            self._state = self.__METHOD
+                        else:
+                            self._push_data()
+                            self._state = self.__RESP
+                    elif self._state == self.__CHUNK_BODY and self._is_body: # chunked
+                        self._body = self._body[:-2] # remove \r\n
             else:
                 # self._data is buffer for body
-                # if the lenght of data in buffer is greater than the length of
+                # if the length of data in buffer is greater than the length of
                 # body, consume until buffer is full.
                 while True:
                     num = len(self._data[0][0])
                     if num <= self._remain:
                         data = self._data[0].pop(0)
                         self._remain -= num
-
-                        if self._is_body:
+                        
+                        if self._state != self.__CHUNK_END and self._is_body:
                             self._body += data[0]
                     else:
-                        if self._is_body:
-                            self._body += self._data[0][0][:self._remain - 1]
+                        if self._state != self.__CHUNK_END and self._is_body:
+                            self._body += self._data[0][0][:self._remain]
+
                         self._data[0][0] = self._data[0][0][self._remain:]
-                        self._remain  = 0
+                        self._remain = 0
 
                     if self._remain == 0:
                         if self._state == self.__BODY:
@@ -305,6 +310,8 @@ class http_parser:
                             else:
                                 self._push_data()
                                 self._state = self.__RESP
+                        elif self._state == self.__CHUNK_BODY and self._is_body: # chunked
+                            self._body = self._body[:-2] # remove \r\n
 
                         return
 
