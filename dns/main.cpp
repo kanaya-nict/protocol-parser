@@ -26,6 +26,33 @@
 #include <map>
 #include <vector>
 
+struct fabs_appif_header {
+    union {
+        uint32_t b32; // big endian
+        uint8_t  b128[16];
+    } l3_addr1;
+
+    union {
+        uint32_t b32; // big endian
+        uint8_t  b128[16];
+    } l3_addr2;
+
+    timeval  tm; // machine-dependent endian
+
+    uint16_t l4_port1; // big endian
+    uint16_t l4_port2; // big endian
+
+    uint8_t  event; // 0: created, 1: destroyed, 2: data
+    uint8_t  from;  // FROM_ADDR1: from addr1, FROM_ADDR2: from addr2
+    uint16_t len;   // machine-dependent endian
+    uint8_t  hop;
+    uint8_t  l3_proto; // IPPROTO_IP or IPPROTO_IPV6
+    uint8_t  l4_proto; // IPPROTO_TCP or IPPROTO_UDP
+    uint8_t  match; // 0: matched up's regex, 1: matched down's regex, 2: none
+    
+    uint8_t  unused[4]; // safety packing for 32 bytes boundary
+} __attribute__((packed, aligned(32)));
+
 #define A      1
 #define NS     2
 #define MD     3
@@ -106,6 +133,7 @@
 #define TA    32768
 #define DLV   32769
 
+bool is_binary = false;
 int ns_format = 2;
 
 std::map<uint16_t, std::string> rr_type;
@@ -698,12 +726,56 @@ void parse_header(std::map<std::string, std::string> &res,
     }
 }
 
+void read_and_parse_binary_header(int sock, std::map<std::string, std::string> &res)
+{
+    fabs_appif_header hdr;
+    int len = read(sock, &hdr, sizeof(hdr));
+    if (len <= 0) {
+        perror("couldn't read");
+        exit(1);
+    }
+
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%d", hdr.len);
+    res["len"] = buf;
+
+    snprintf(buf, sizeof(buf), "%lf", (hdr.tm.tv_sec + hdr.tm.tv_usec * 1e-6));
+    res["time"] = buf;
+
+    if (hdr.from == 0)
+        res["from"] = "0";
+    else if (hdr.from == 1)
+        res["from"] = "1";
+
+    snprintf(buf, sizeof(buf), "%d", ntohs(hdr.l4_port1));
+    res["port1"] = buf;
+
+    snprintf(buf, sizeof(buf), "%d", ntohs(hdr.l4_port2));
+    res["port2"] = buf;
+
+    if (hdr.l3_proto == IPPROTO_IP)
+        inet_ntop(PF_INET, &hdr.l3_addr1.b32, buf, sizeof(buf));
+    else if (hdr.l3_proto == IPPROTO_IPV6)
+        inet_ntop(PF_INET6, hdr.l3_addr1.b128, buf, sizeof(buf));
+
+    res["ip1"] = buf;
+    std::cout << buf << std::endl;
+
+    if (hdr.l3_proto == IPPROTO_IP)
+        inet_ntop(PF_INET, &hdr.l3_addr2.b32, buf, sizeof(buf));
+    else if (hdr.l3_proto == IPPROTO_IPV6)
+        inet_ntop(PF_INET6, hdr.l3_addr2.b128, buf, sizeof(buf));
+
+    res["ip2"] = buf;
+    std::cout << buf << std::endl;
+}
+
 int main(int argc, char *argv[])
 {
     int   result;
     std::string uxpath = (char*)"/tmp/sf-tap/udp/dns";
 
-    while((result = getopt(argc, argv, "u:pjh"))!=-1){
+    while((result = getopt(argc, argv, "u:pjhb"))!=-1){
         switch (result) {
         case 'p':
             ns_format = 1;
@@ -714,12 +786,16 @@ int main(int argc, char *argv[])
         case 'u':
             uxpath = optarg;
             break;
+        case 'b':
+            is_binary = true;
+            break;
         case 'h':
         default:
             std::cout << argv[0] << " -p -u unix_domain_path\n"
                       << "  -j: print data as JSON format (default)\n"
                       << "  -p: print data as packet format\n"
-                      << "  -u: specify a path of unix domain socket"
+                      << "  -u: specify a path of unix domain socket\n"
+                      << "  -b: read header as binary"
                       << std::endl;
             return 0;
         }
@@ -747,11 +823,14 @@ int main(int argc, char *argv[])
     for (;;) {
         std::map<std::string, std::string> header;
 
-        std::string line = read_line(sock);
-        parse_header(header, line);
-
-        if (ns_format != 2)
-            std::cout << line << std::endl;
+        if (is_binary) {
+            read_and_parse_binary_header(sock, header);
+        } else {
+            std::string line = read_line(sock);
+            parse_header(header, line);
+            if (ns_format != 2)
+                std::cout << line << std::endl;
+        }
 
         auto it = header.find("len");
         if (it == header.end()) {
