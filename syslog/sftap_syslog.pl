@@ -3,7 +3,13 @@ use IO::Socket::UNIX;
 use JSON;
 use MIME::Base64 qw(encode_base64);
 
-my $name = "/tmp/sf-tap/udp/syslog";
+my $name;
+
+if (@ARGV > 0) {
+    $name = $ARGV[0];
+} else {
+    $name = "/tmp/sf-tap/udp/syslog";
+}
 
 sub parse_header{
     my ($line) = @_;
