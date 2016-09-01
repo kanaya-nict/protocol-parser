@@ -44,7 +44,16 @@ class http_parser:
 
     def get_addr(self):
         return {'ip': self._ip, 'port': self._port}
-        
+
+    def set_addr_peer(self, header):
+        if self._ip == '':
+            if header['from'] == '1':
+                self._ip   = header['ip2']
+                self._port = int(header['port2'])
+            elif header['from'] == '2':
+                self._ip   = header['ip1']
+                self._port = int(header['port1'])
+    
     def in_data(self, data, header):
         if self.__is_error:
             return
@@ -410,13 +419,13 @@ class sftap_http:
                             elif len(c.result) > 0:
                                 rc = c.result.pop(0)
                                 if rc['method'] != {}:
-                                    print(json.dumps({'client': rc},
+                                    print(json.dumps({'client': rc, 'server': s.get_addr()},
                                                     separators=(',', ':'),
                                                     ensure_ascii = False))
                             elif len(s.result) > 0:
                                 rs = s.result.pop(0)
                                 if rs['response'] != {}:
-                                    print(json.dumps({'server': rs},
+                                    print(json.dumps({'server': rs, 'client': c.get_addr()},
                                                     separators=(',', ':'),
                                                     ensure_ascii = False))
 
@@ -440,8 +449,10 @@ class sftap_http:
                 if sid in self._http:
                     if self._header['match'] == 'up':
                         self._http[sid][0].in_data(buf, self._header)
+                        self._http[sid][1].set_addr_peer(self._header)
                     elif self._header['match'] == 'down':
                         self._http[sid][1].in_data(buf, self._header)
+                        self._http[sid][0].set_addr_peer(self._header)
 
                     while True:
                         if (len(self._http[sid][0].result) > 0 and
