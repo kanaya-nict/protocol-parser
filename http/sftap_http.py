@@ -42,6 +42,9 @@ class http_parser:
 
         self.__is_error = False
 
+    def get_addr(self):
+        return {'ip': self._ip, 'port': self._port}
+        
     def in_data(self, data, header):
         if self.__is_error:
             return
@@ -417,6 +420,11 @@ class sftap_http:
                                                     separators=(',', ':'),
                                                     ensure_ascii = False))
 
+                        if self._header['reason'] != 'NORMAL':
+                            print(json.dumps({'server': s.get_addr(), 'client': c.get_addr(),
+                                              'error': self._header['reason']},
+                                             separators=(',', ':'),
+                                             ensure_ascii = False))
                         del self._http[sid]
                     except KeyError:
                         pass
