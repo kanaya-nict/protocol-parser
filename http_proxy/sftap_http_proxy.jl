@@ -5,15 +5,15 @@ import JSON
 @enum http_state HTTP_INIT HTTP_HEADER HTTP_BODY
 
 type http_method
-    method::ASCIIString
-    url::ASCIIString
-    ver::ASCIIString
+    method::String
+    url::String
+    ver::String
 end
 
 type http_response
-    ver::ASCIIString
-    code::ASCIIString
-    comment::ASCIIString
+    ver::String
+    code::String
+    comment::String
 end
 
 type http_flow
@@ -23,8 +23,8 @@ type http_flow
     down_state::http_state
     method::http_method
     response::http_response
-    client_header::Dict{ASCIIString, ASCIIString}
-    server_header::Dict{ASCIIString, ASCIIString}
+    client_header::Dict{String, String}
+    server_header::Dict{String, String}
     client_time::Float64
     server_time::Float64
 end
@@ -86,11 +86,11 @@ function print_json(hdic, flow::http_flow)
     println(JSON.json(d))
 end
 
-function header2dic(header::ASCIIString)
+function header2dic(header::String)
     h = rstrip(header)
     sp = split(h, [',', '='])
 
-    hdic = Dict{ASCIIString, ASCIIString}()
+    hdic = Dict{String, String}()
 
     i = 1
     while i <= length(sp)
@@ -114,17 +114,17 @@ function removeline(data::Vector{UInt8})
     return false
 end
 
-function parse_method(data::ASCIIString)
+function parse_method(data::String)
     sp = split(rstrip(data), [' '], limit=3)
     try http_method(sp[1], sp[2], sp[3]) catch http_method("", "", "") end
 end
 
-function parse_response(data::ASCIIString)
+function parse_response(data::String)
     sp = split(rstrip(data), [' '], limit=3)
     try http_response(sp[1], sp[2], sp[3]) catch http_response("", "", "") end
 end
 
-function parse_header(data::ASCIIString)
+function parse_header(data::String)
     sp = split(rstrip(data), [':'], limit=2)
     try (sp[1], lstrip(sp[2])) catch ("", "") end
 end
@@ -244,7 +244,7 @@ function run(proxy::http_proxy)
         hdic, id = header2dic(header)
 
         if hdic["event"] == "DATA"
-            bytes = readbytes(proxy.sock_proxy, parse(Int, hdic["len"]))
+            bytes = read(proxy.sock_proxy, parse(Int, hdic["len"]))
             if haskey(proxy.flows, id)
                 in_data(proxy, header, hdic, id, bytes)
             end
@@ -253,8 +253,8 @@ function run(proxy::http_proxy)
                                         HTTP_INIT, HTTP_INIT,
                                         http_method("", "", ""),
                                         http_response("", "", ""),
-                                        Dict{ASCIIString, ASCIIString}(),
-                                        Dict{ASCIIString, ASCIIString}(),
+                                        Dict{String, String}(),
+                                        Dict{String, String}(),
                                         0.0, 0.0)
             write(proxy.sock_lb7, header)
         else # DESTROYED
