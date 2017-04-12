@@ -108,7 +108,7 @@ end
 function removeline(data::Vector{UInt8})
     idx = findfirst(data, UInt8('\n'))
     if idx > 0
-        return ascii(splice!(data, 1:idx))
+        return ascii(String(splice!(data, 1:idx)))
     end
 
     return false
