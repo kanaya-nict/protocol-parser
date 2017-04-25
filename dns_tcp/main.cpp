@@ -755,50 +755,6 @@ void parse_header(std::map<std::string, std::string> &res,
     }
 }
 
-void read_and_parse_binary_header(int sock, std::map<std::string, std::string> &res)
-{
-    fabs_appif_header hdr;
-    int len = read(sock, &hdr, sizeof(hdr));
-    if (len <= 0) {
-        perror("couldn't read");
-        exit(1);
-    }
-
-    char buf[128];
-    snprintf(buf, sizeof(buf), "%d", hdr.len);
-    res["len"] = buf;
-
-    snprintf(buf, sizeof(buf), "%lf", (hdr.tm.tv_sec + hdr.tm.tv_usec * 1e-6));
-    res["time"] = buf;
-
-    if (hdr.from == 0)
-        res["from"] = "0";
-    else if (hdr.from == 1)
-        res["from"] = "1";
-
-    snprintf(buf, sizeof(buf), "%d", ntohs(hdr.l4_port1));
-    res["port1"] = buf;
-
-    snprintf(buf, sizeof(buf), "%d", ntohs(hdr.l4_port2));
-    res["port2"] = buf;
-
-    if (hdr.l3_proto == IPPROTO_IP)
-        inet_ntop(PF_INET, &hdr.l3_addr1.b32, buf, sizeof(buf));
-    else if (hdr.l3_proto == IPPROTO_IPV6)
-        inet_ntop(PF_INET6, hdr.l3_addr1.b128, buf, sizeof(buf));
-
-    res["ip1"] = buf;
-    std::cout << buf << std::endl;
-
-    if (hdr.l3_proto == IPPROTO_IP)
-        inet_ntop(PF_INET, &hdr.l3_addr2.b32, buf, sizeof(buf));
-    else if (hdr.l3_proto == IPPROTO_IPV6)
-        inet_ntop(PF_INET6, hdr.l3_addr2.b128, buf, sizeof(buf));
-
-    res["ip2"] = buf;
-    std::cout << buf << std::endl;
-}
-
 int main(int argc, char *argv[])
 {
     int result;
