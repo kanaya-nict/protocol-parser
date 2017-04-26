@@ -251,7 +251,7 @@ main(int argc, char *argv[])
         // read binary header
         fabs_appif_header hdr;
         int len = read(sock, &hdr, sizeof(hdr));
-        if (len < sizeof(hdr)) {
+        if (len < (int)sizeof(hdr)) {
             perror("couldn't read");
             exit(1);
         }
