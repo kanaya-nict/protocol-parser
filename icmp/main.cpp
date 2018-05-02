@@ -209,6 +209,7 @@ print_json(const icmp *p, const fabs_appif_header &hdr)
     }
 
     printf("}\n");
+    fflush(stdout);
 }
 
 int

@@ -668,6 +668,7 @@ void parse_dns(unsigned char *payload, int length,
 
     ns_initparse(payload, length, &ns_handle);
     ns_print(&ns_handle, ns_format, header);
+    fflush(stdout);
 
     return;
 }
