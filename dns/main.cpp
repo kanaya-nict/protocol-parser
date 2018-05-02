@@ -42,15 +42,16 @@ struct fabs_appif_header {
     uint16_t l4_port1; // big endian
     uint16_t l4_port2; // big endian
 
-    uint8_t  event; // 0: created, 1: destroyed, 2: data
-    uint8_t  from;  // FROM_ADDR1: from addr1, FROM_ADDR2: from addr2
-    uint16_t len;   // machine-dependent endian
+    uint8_t  event;    // 0: created, 1: destroyed, 2: data
+    uint8_t  from;     // FROM_ADDR1 (== 0): from addr1, FROM_ADDR2 (== 1): from addr2
+    uint16_t len;      // length of message (machine-dependent endian)
     uint8_t  hop;
     uint8_t  l3_proto; // IPPROTO_IP or IPPROTO_IPV6
-    uint8_t  l4_proto; // IPPROTO_TCP or IPPROTO_UDP
-    uint8_t  match; // 0: matched up's regex, 1: matched down's regex, 2: none
-    
-    uint8_t  unused[4]; // safety packing for 32 bytes boundary
+    uint8_t  l4_proto; // IPPROTO_TCP, IPPROTO_UDP, IPPROTO_ICMP, or IPPROTO_ICMPV6
+    uint8_t  match;    // 0: matched up's regex, 1: matched down's regex, 2: none
+    uint8_t  reason;   // 0: normal, 1: reset, 2: timeout, 3: compromised
+    uint16_t vlanid;   // vlan ID, big endian
+    uint8_t  unused;   // safety packing for 32 bytes boundary
 } __attribute__((packed, aligned(32)));
 
 #define A      1
@@ -337,7 +338,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         dname,                                  \
         sizeof(dname))
 
-    if (format == 1) {
+    if (format == 1) { // ascii art
         printf("| %-31s |\n", ns_rr_name(rr));
         printf("+----------------+----------------+\n");
         printf("| TYPE:%9d | CLASS:%8d |\n", ns_rr_type(rr), ns_rr_class(rr));
@@ -355,7 +356,7 @@ rr_print(ns_msg* ns_handle, int field, int count, int format)
         } else {
             memdump_format1((void*)ns_rr_rdata(rr) ,ns_rr_rdlen(rr));
         }
-    } else if (format == 2) {
+    } else if (format == 2) { // JSON
         if (rr_type.find(ns_rr_type(rr)) != rr_type.end()) {
             printf("{\"name\":\"%s\",\"type\":\"%s\",\"class\":%d",
                    ns_rr_name(rr), rr_type[ns_rr_type(rr)].c_str(), ns_rr_class(rr));
@@ -534,7 +535,7 @@ ns_print(ns_msg* ns_handle, int format,
     int additional_count;
     additional_count = ns_msg_count(*ns_handle, ns_s_ar);
 
-    if (format == 1) {
+    if (format == 1) { // ascii art
         char upper[9];
         char lower[9];
         memset(upper, 0, sizeof(upper));
@@ -571,7 +572,7 @@ ns_print(ns_msg* ns_handle, int format,
                 break;
             printf("+----------------+----------------+\n");
         }
-    } else if (format == 2) {
+    } else if (format == 2) { // JSON
         printf("{");
 
         printf("\"time\":%lf,", atof(header["time"].c_str()));
@@ -595,6 +596,9 @@ ns_print(ns_msg* ns_handle, int format,
             printf("\"port\":%d", atoi(header["port1"].c_str()));
         }
         printf("},");
+
+        if (header.find("vlan") != header.end())
+            printf("\"vlan\":%s,", header["vlan"].c_str());
 
         printf("\"id\":%d,", ns_msg_id(*ns_handle));
         printf("\"qr\":%d,", ns_msg_getflag(*ns_handle, ns_f_qr));
@@ -743,9 +747,9 @@ void read_and_parse_binary_header(int sock, std::map<std::string, std::string> &
     res["time"] = buf;
 
     if (hdr.from == 0)
-        res["from"] = "0";
-    else if (hdr.from == 1)
         res["from"] = "1";
+    else if (hdr.from == 1)
+        res["from"] = "2";
 
     snprintf(buf, sizeof(buf), "%d", ntohs(hdr.l4_port1));
     res["port1"] = buf;
@@ -759,7 +763,6 @@ void read_and_parse_binary_header(int sock, std::map<std::string, std::string> &
         inet_ntop(PF_INET6, hdr.l3_addr1.b128, buf, sizeof(buf));
 
     res["ip1"] = buf;
-    std::cout << buf << std::endl;
 
     if (hdr.l3_proto == IPPROTO_IP)
         inet_ntop(PF_INET, &hdr.l3_addr2.b32, buf, sizeof(buf));
@@ -767,7 +770,13 @@ void read_and_parse_binary_header(int sock, std::map<std::string, std::string> &
         inet_ntop(PF_INET6, hdr.l3_addr2.b128, buf, sizeof(buf));
 
     res["ip2"] = buf;
-    std::cout << buf << std::endl;
+
+    if (hdr.vlanid == 0xffff) {
+        res["vlan"] = "-1";
+    } else {
+        snprintf(buf, sizeof(buf), "%d", ntohs(hdr.vlanid));
+        res["vlan"] = buf;
+    }
 }
 
 int main(int argc, char *argv[])
@@ -825,6 +834,15 @@ int main(int argc, char *argv[])
 
         if (is_binary) {
             read_and_parse_binary_header(sock, header);
+            if (ns_format != 2) {
+                auto it = header.begin();
+                std::cout << it->first << "=" << it->second;
+                ++it;
+                for (; it != header.end(); ++it) {
+                    std::cout << "," << it->first << "=" << it->second;
+                }
+                std::cout << std::endl;
+            }
         } else {
             std::string line = read_line(sock);
             parse_header(header, line);
@@ -849,6 +867,8 @@ int main(int argc, char *argv[])
                 exit(1);
             }
             parse_dns(buf, len, header);
+            if (ns_format == 1)
+                printf("\n");
             fflush(stdout);
         }
     }
