@@ -53,7 +53,7 @@ class http_parser:
             elif header['from'] == '2':
                 self._ip   = header['ip1']
                 self._port = int(header['port1'])
-    
+
     def in_data(self, data, header):
         if self.__is_error:
             return
@@ -106,7 +106,7 @@ class http_parser:
 
         if self._is_body:
             result['body'] = base64.b64encode(self._body).decode('utf-8')
-            
+
         result['ip']   = self._ip
         result['port'] = self._port
         result['time'] = self._time
@@ -304,7 +304,7 @@ class http_parser:
                     if num <= self._remain:
                         data = self._data[0].pop(0)
                         self._remain -= num
-                        
+
                         if self._state != self.__CHUNK_END and self._is_body:
                             self._body += data[0]
                     else:
@@ -405,7 +405,8 @@ class sftap_http:
                         sid = self._get_id()
                         c = self._http[sid][0]
                         s = self._http[sid][1]
-                        
+                        vlan = sid[5]
+
                         c.destroy()
                         s.destroy()
 
@@ -413,24 +414,24 @@ class sftap_http:
                             if len(c.result) > 0 and len(s.result):
                                 rc = c.result.pop(0)
                                 rs = s.result.pop(0)
-                                print(json.dumps({'client': rc, 'server': rs},
+                                print(json.dumps({'vlan': vlan, 'client': rc, 'server': rs},
                                                  separators=(',', ':'),
                                                  ensure_ascii = False))
                             elif len(c.result) > 0:
                                 rc = c.result.pop(0)
                                 if rc['method'] != {}:
-                                    print(json.dumps({'client': rc, 'server': s.get_addr()},
+                                    print(json.dumps({'vlan': vlan, 'client': rc, 'server': s.get_addr()},
                                                     separators=(',', ':'),
                                                     ensure_ascii = False))
                             elif len(s.result) > 0:
                                 rs = s.result.pop(0)
                                 if rs['response'] != {}:
-                                    print(json.dumps({'server': rs, 'client': c.get_addr()},
+                                    print(json.dumps({'vlan': vlan, 'server': rs, 'client': c.get_addr()},
                                                     separators=(',', ':'),
                                                     ensure_ascii = False))
 
                         if self._header['reason'] != 'NORMAL':
-                            print(json.dumps({'server': s.get_addr(), 'client': c.get_addr(),
+                            print(json.dumps({'vlan': vlan, 'server': s.get_addr(), 'client': c.get_addr(),
                                               'error': self._header['reason']},
                                              separators=(',', ':'),
                                              ensure_ascii = False))
@@ -445,6 +446,7 @@ class sftap_http:
                     break
 
                 sid = self._get_id()
+                vlan = sid[5]
 
                 if sid in self._http:
                     if self._header['match'] == 'up':
@@ -459,7 +461,7 @@ class sftap_http:
                             len(self._http[sid][1].result) > 0):
                             c = self._http[sid][0].result.pop(0)
                             s = self._http[sid][1].result.pop(0)
-                            print(json.dumps({'client': c, 'server': s},
+                            print(json.dumps({'vlan': vlan, 'client': c, 'server': s},
                                              separators=(',', ':'),
                                              ensure_ascii = False))
                         else:
@@ -530,11 +532,16 @@ class sftap_http:
         return d
 
     def _get_id(self):
+        vlan = -1
+        if 'vlan' in self._header:
+            vlan = self._header['vlan']
+
         return (self._header['ip1'],
                 self._header['ip2'],
                 self._header['port1'],
                 self._header['port2'],
-                self._header['hop'])
+                self._header['hop'],
+                vlan)
 
 def main():
     uxpath = '/tmp/sf-tap/tcp/http'
