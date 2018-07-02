@@ -9,8 +9,12 @@ ENDIF(POLICY CMP0042)
 
 project (sftap_dns)
 
+find_package(Boost COMPONENTS iostreams REQUIRED)
+
+set(LIBS ${Boost_IOSTREAMS_LIBRARY})
+
 IF(NOT ${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-  set(LIBS resolv)
+  set(LIBS ${LIBS} resolv)
 ENDIF(NOT ${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
 
 set(CMAKE_CXX_FLAGS "-Wall -std=c++11")

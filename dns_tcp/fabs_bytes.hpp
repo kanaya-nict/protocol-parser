@@ -201,6 +201,8 @@ void get_digest(fabs_bytes &md_value, const char *alg, const char *buf,
 std::string bin2str(const char *buf, int len);
 void print_binary(const char *buf, int len);
 void to_lower_str(std::string &str);
+void decompress_gzip(const char *buf, int len, std::string &out_buf);
+void decompress_zlib(const char *buf, int len, std::string &out_buf);
 std::string trim(const std::string &str,
                  const char *trimCharacterList = " \t\v\r\n");
 

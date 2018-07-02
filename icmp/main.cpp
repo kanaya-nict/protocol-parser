@@ -29,17 +29,17 @@ struct fabs_appif_header {
     uint16_t l4_port1; // big endian
     uint16_t l4_port2; // big endian
 
-    uint8_t  event; // 0: created, 1: destroyed, 2: data
-    uint8_t  from;  // FROM_ADDR1 (== 0): from addr1, FROM_ADDR2 (== 1): from addr2
-    uint16_t len;   // machine-dependent endian
+    uint8_t  event;    // 0: created, 1: destroyed, 2: data
+    uint8_t  from;     // FROM_ADDR1 (== 0): from addr1, FROM_ADDR2 (== 1): from addr2
+    uint16_t len;      // length of message (machine-dependent endian)
     uint8_t  hop;
     uint8_t  l3_proto; // IPPROTO_IP or IPPROTO_IPV6
-    uint8_t  l4_proto; // IPPROTO_TCP or IPPROTO_UDP
-    uint8_t  match; // 0: matched up's regex, 1: matched down's regex, 2: none
-
-    uint8_t  unused[4]; // safety packing for 32 bytes boundary
+    uint8_t  l4_proto; // IPPROTO_TCP, IPPROTO_UDP, IPPROTO_ICMP, or IPPROTO_ICMPV6
+    uint8_t  match;    // 0: matched up's regex, 1: matched down's regex, 2: none
+    uint8_t  reason;   // 0: normal, 1: reset, 2: timeout, 3: compromised
+    uint16_t vlanid;   // vlan ID, big endian
+    uint8_t  unused;   // safety packing for 32 bytes boundary
 } __attribute__((packed, aligned(32)));
-
 
 static const std::string base64_chars =
              "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -144,6 +144,7 @@ print_json(const icmp *p, const fabs_appif_header &hdr)
 
     printf("\"time\":%s,", buf1);
     printf("\"len\":%d,", hdr.len);
+    printf("\"vlan\":%d,", (int16_t)ntohs(hdr.vlanid));
 
     if (hdr.l3_proto == IPPROTO_IP) {
         inet_ntop(PF_INET, &hdr.l3_addr1.b32, buf1, sizeof(buf1));

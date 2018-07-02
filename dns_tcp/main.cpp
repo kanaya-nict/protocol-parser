@@ -108,7 +108,6 @@
 #define TA    32768
 #define DLV   32769
 
-bool is_binary = false;
 int ns_format = 2;
 
 std::map<uint16_t, std::string> rr_type;
@@ -626,6 +625,7 @@ ns_print(ns_msg* ns_handle, int format, const fabs_appif_header &hdr)
         }
         printf("},");
 
+        printf("\"vlan\":%d,", (int16_t)ntohs(hdr.vlanid));
         printf("\"id\":%d,", ns_msg_id(*ns_handle));
         printf("\"qr\":%d,", ns_msg_getflag(*ns_handle, ns_f_qr));
         printf("\"op\":%d,", ns_msg_getflag(*ns_handle, ns_f_opcode));
@@ -697,64 +697,6 @@ void parse_dns(unsigned char *payload, int length, const fabs_appif_header &hdr)
     return;
 }
 
-std::string read_line(int sock)
-{
-    std::string line;
-    int len;
-
-    for (;;) {
-        char c;
-
-        // read function is called too many
-        len = read(sock, &c, 1);
-        if (len == 0) {
-            fprintf(stderr, "remote socket was closed");
-            exit(0);
-        } else if (len <= 0) {
-            perror("couldn't read 1");
-            exit(1);
-        }
-
-        if (c == '\n') {
-            return line;
-        } else {
-            line += c;
-        }
-    }
-}
-
-void split(std::vector<std::string> &res, const std::string &str, char delim){
-    size_t current = 0, found;
-
-    while((found = str.find_first_of(delim, current)) != std::string::npos){
-        res.push_back(std::string(str, current, found - current));
-        current = found + 1;
-    }
-
-    res.push_back(std::string(str, current, str.size() - current));
-}
-
-void parse_header(std::map<std::string, std::string> &res,
-                  const std::string &line)
-{
-    std::vector<std::string> sp;
-
-    split(sp, line, ',');
-
-    for (auto it = sp.begin(); it != sp.end(); ++it) {
-        std::vector<std::string> kv;
-
-        split(kv, *it, '=');
-
-        if (kv.size() != 2) {
-            std::cerr << "invalid header" << std::endl;
-            exit(1);
-        }
-
-        res[kv[0]] = kv[1];
-    }
-}
-
 int main(int argc, char *argv[])
 {
     int result;
@@ -771,16 +713,12 @@ int main(int argc, char *argv[])
         case 'u':
             uxpath = optarg;
             break;
-        case 'b':
-            is_binary = true;
-            break;
         case 'h':
         default:
             std::cout << argv[0] << " -p -u unix_domain_path\n"
                       << "  -j: print data as JSON format (default)\n"
                       << "  -p: print data as packet format\n"
-                      << "  -u: specify a path of unix domain socket\n"
-                      << "  -b: read header as binary"
+                      << "  -u: specify a path of unix domain socket"
                       << std::endl;
             return 0;
         }
