@@ -6,6 +6,7 @@ import json
 import sys, traceback
 import base64
 import datetime
+from binascii import b2a_qp
 
 class http_parser:
     def __init__(self, is_client = True, is_body = True):
@@ -180,10 +181,10 @@ class http_parser:
             else:
                 sp = line.split(b': ')
 
-                val = (b': '.join(sp[1:])).decode('utf-8')
+                val = b2a_qp((b': '.join(sp[1:]))).decode('utf-8')
                 val = val.strip()
 
-                self._trailer[sp[0].decode('utf-8')] = val
+                self._trailer[b2a_qp(sp[0]).decode('utf-8')] = val
             return True
         else:
             return False
@@ -194,9 +195,9 @@ class http_parser:
         if result:
             sp = line.split(b' ')
 
-            self._method['method'] = sp[0].decode('utf-8')
-            self._method['uri']    = sp[1].decode('utf-8')
-            self._method['ver']    = sp[2].decode('utf-8')
+            self._method['method'] = b2a_qp(sp[0]).decode('utf-8')
+            self._method['uri']    = b2a_qp(sp[1]).decode('utf-8')
+            self._method['ver']    = b2a_qp(sp[2]).decode('utf-8')
 
             self._state = self.__HEADER
             return True
@@ -209,9 +210,9 @@ class http_parser:
         if result:
             sp = line.split(b' ')
 
-            self._response['ver']  = sp[0].decode('utf-8')
-            self._response['code'] = sp[1].decode('utf-8')
-            self._response['msg']  = (b' '.join(sp[2:])).decode('utf-8')
+            self._response['ver']  = b2a_qp(sp[0]).decode('utf-8')
+            self._response['code'] = b2a_qp(sp[1]).decode('utf-8')
+            self._response['msg']  = b2a_qp((b' '.join(sp[2:]))).decode('utf-8')
 
             self._state = self.__HEADER
             return True
@@ -258,10 +259,10 @@ class http_parser:
             else:
                 sp = line.split(b': ')
 
-                val = (b': '.join(sp[1:])).decode('utf-8')
+                val = b2a_qp((b': '.join(sp[1:]))).decode('utf-8')
                 val = val.strip()
 
-                self._header[sp[0].decode('utf-8').lower()] = val
+                self._header[b2a_qp(sp[0]).decode('utf-8').lower()] = val
 
             return True
         else:
