@@ -39,6 +39,7 @@ struct fabs_appif_header {
     uint8_t  reason;   // 0: normal, 1: reset, 2: timeout, 3: compromised
     uint16_t vlanid;   // vlan ID, big endian
     uint8_t  unused;   // safety packing for 32 bytes boundary
+    uint32_t netid;    // Identifier of network such as span_id in GRE packets.
 } __attribute__((packed, aligned(32)));
 
 static const std::string base64_chars =
@@ -145,6 +146,7 @@ print_json(const icmp *p, const fabs_appif_header &hdr)
     printf("\"time\":%s,", buf1);
     printf("\"len\":%d,", hdr.len);
     printf("\"vlan\":%d,", (int16_t)ntohs(hdr.vlanid));
+    printf("\"netid\":%d,", hdr.netid);
 
     if (hdr.l3_proto == IPPROTO_IP) {
         inet_ntop(PF_INET, &hdr.l3_addr1.b32, buf1, sizeof(buf1));
